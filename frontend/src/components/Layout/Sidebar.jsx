@@ -12,6 +12,7 @@ import {
   LogOut,
   Shield,
   UserCheck,
+  Settings,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 
@@ -23,6 +24,7 @@ const menus = [
   { name: "05. Insiden & Risiko", path: "/insiden-risiko", icon: AlertTriangle },
   { name: "06. Laporan Periodik", path: "/laporan-periodik", icon: FileSpreadsheet },
   { name: "07. Manajemen User", path: "/users", icon: Users },
+  { name: "08. Pengaturan KOP & Sistem", path: "/pengaturan", icon: Settings },
 ];
 
 export default function Sidebar({ isOpen, setIsOpen }) {
@@ -62,8 +64,8 @@ export default function Sidebar({ isOpen, setIsOpen }) {
                 <Building2 className="w-6 h-6" />
               </div>
               <div>
-                <h1 className="font-bold text-base tracking-wide text-white">SIM-MFK</h1>
-                <p className="text-[11px] text-emerald-400 font-medium">UPTD Puskesmas</p>
+                <h1 className="font-bold text-base tracking-wide text-white">SIKELA</h1>
+                <p className="text-[11px] text-emerald-400 font-medium">UPTD Puskesmas Muara Kulam</p>
               </div>
             </div>
             <button
@@ -76,26 +78,33 @@ export default function Sidebar({ isOpen, setIsOpen }) {
 
           {/* Navigation Links */}
           <nav className="p-4 space-y-1.5">
-            {menus.map((item) => {
-              const Icon = item.icon;
-              return (
-                <NavLink
-                  key={item.path}
-                  to={item.path}
-                  onClick={() => setIsOpen(false)}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition ${
-                      isActive
-                        ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-900/30"
-                        : "text-slate-300 hover:bg-slate-800/80 hover:text-white"
-                    }`
-                  }
-                >
-                  <Icon className="w-5 h-5" />
-                  <span>{item.name}</span>
-                </NavLink>
-              );
-            })}
+            {menus
+              .filter((item) => {
+                if (item.path === "/users" || item.path === "/pengaturan") {
+                  return user?.role === "admin";
+                }
+                return true;
+              })
+              .map((item) => {
+                const Icon = item.icon;
+                return (
+                  <NavLink
+                    key={item.path}
+                    to={item.path}
+                    onClick={() => setIsOpen(false)}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition ${
+                        isActive
+                          ? "bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-900/30"
+                          : "text-slate-300 hover:bg-slate-800/80 hover:text-white"
+                      }`
+                    }
+                  >
+                    <Icon className="w-5 h-5" />
+                    <span>{item.name}</span>
+                  </NavLink>
+                );
+              })}
           </nav>
         </div>
 

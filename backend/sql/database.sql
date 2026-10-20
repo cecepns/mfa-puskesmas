@@ -6,31 +6,33 @@ CREATE TABLE rooms (
   name VARCHAR(150) NOT NULL,
   category ENUM('Klaster_Ruangan', 'Sanitasi_Toilet', 'Area_Umum') NOT NULL,
   pic_name VARCHAR(100) DEFAULT 'PJ Ruangan',
+  pic_user_id INT NULL,
   condition_status ENUM('Baik', 'Perlu Perbaikan', 'Rusak Berat') DEFAULT 'Baik',
+  damage_description TEXT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-INSERT INTO rooms (name, category, pic_name, condition_status) VALUES
-('Manajemen', 'Klaster_Ruangan', 'Budi Santoso', 'Baik'),
-('Klaster I Pendaftaran dan Rekam Medis', 'Klaster_Ruangan', 'Siti Aminah', 'Baik'),
-('Klaster II Ibu dan Anak', 'Klaster_Ruangan', 'Bidan Rina', 'Baik'),
-('Klaster II dan III Kesehatan Gigi dan Mulut', 'Klaster_Ruangan', 'drg. Hendra', 'Perlu Perbaikan'),
-('Klaster III Usia Dewasa dan Lansia', 'Klaster_Ruangan', 'Ns. Joko', 'Baik'),
-('Klaster IV Penanggulangan Penyakit Menular', 'Klaster_Ruangan', 'dr. Maya', 'Baik'),
-('Lintas Klaster UGD', 'Klaster_Ruangan', 'Ns. Andi', 'Baik'),
-('Lintas Klaster Laboratorium', 'Klaster_Ruangan', 'Analis Dedi', 'Perlu Perbaikan'),
-('Lintas Klaster Farmasi', 'Klaster_Ruangan', 'Apt. Lestari', 'Baik'),
-('Lintas Klaster Rawat Inap', 'Klaster_Ruangan', 'Ns. Putri', 'Baik'),
-('Toilet LT. II Perempuan', 'Sanitasi_Toilet', 'Petugas Kebersihan A', 'Baik'),
-('Toilet LT. II Laki-Laki', 'Sanitasi_Toilet', 'Petugas Kebersihan A', 'Baik'),
-('Toilet LT. I Perempuan', 'Sanitasi_Toilet', 'Petugas Kebersihan B', 'Baik'),
-('Toilet LT. I Laki-Laki', 'Sanitasi_Toilet', 'Petugas Kebersihan B', 'Perlu Perbaikan'),
-('Toilet UGD Perempuan', 'Sanitasi_Toilet', 'Petugas Kebersihan C', 'Baik'),
-('Toilet UGD Laki-Laki', 'Sanitasi_Toilet', 'Petugas Kebersihan C', 'Baik'),
-('Toilet Klaster IV', 'Sanitasi_Toilet', 'Petugas Kebersihan C', 'Baik'),
-('Toilet Ranap Anak', 'Sanitasi_Toilet', 'Petugas Kebersihan D', 'Baik'),
-('Toilet Ranap Perempuan', 'Sanitasi_Toilet', 'Petugas Kebersihan D', 'Baik'),
-('Toilet Ranap Laki-Laki', 'Sanitasi_Toilet', 'Petugas Kebersihan D', 'Baik');
+INSERT INTO rooms (name, category, pic_name, condition_status, damage_description) VALUES
+('Manajemen', 'Klaster_Ruangan', 'Budi Santoso', 'Baik', NULL),
+('Klaster I Pendaftaran dan Rekam Medis', 'Klaster_Ruangan', 'Siti Aminah', 'Baik', NULL),
+('Klaster II Ibu dan Anak', 'Klaster_Ruangan', 'Bidan Rina', 'Baik', NULL),
+('Klaster II dan III Kesehatan Gigi dan Mulut', 'Klaster_Ruangan', 'drg. Hendra', 'Perlu Perbaikan', 'Saluran air kumur dental unit mampet dan lampu periksa redup'),
+('Klaster III Usia Dewasa dan Lansia', 'Klaster_Ruangan', 'Ns. Joko', 'Baik', NULL),
+('Klaster IV Penanggulangan Penyakit Menular', 'Klaster_Ruangan', 'dr. Maya', 'Baik', NULL),
+('Lintas Klaster UGD', 'Klaster_Ruangan', 'Ns. Andi', 'Baik', NULL),
+('Lintas Klaster Laboratorium', 'Klaster_Ruangan', 'Analis Dedi', 'Perlu Perbaikan', 'Exhaust fan ruangan tidak berfungsi optimal, perlu perbaikan ventilasi'),
+('Lintas Klaster Farmasi', 'Klaster_Ruangan', 'Apt. Lestari', 'Baik', NULL),
+('Lintas Klaster Rawat Inap', 'Klaster_Ruangan', 'Ns. Putri', 'Baik', NULL),
+('Toilet LT. II Perempuan', 'Sanitasi_Toilet', 'Petugas Kebersihan A', 'Baik', NULL),
+('Toilet LT. II Laki-Laki', 'Sanitasi_Toilet', 'Petugas Kebersihan A', 'Baik', NULL),
+('Toilet LT. I Perempuan', 'Sanitasi_Toilet', 'Petugas Kebersihan B', 'Baik', NULL),
+('Toilet LT. I Laki-Laki', 'Sanitasi_Toilet', 'Petugas Kebersihan B', 'Perlu Perbaikan', 'Kran wastafel bocor dan engsel pintu kamar mandi perlu perbaikan'),
+('Toilet UGD Perempuan', 'Sanitasi_Toilet', 'Petugas Kebersihan C', 'Baik', NULL),
+('Toilet UGD Laki-Laki', 'Sanitasi_Toilet', 'Petugas Kebersihan C', 'Baik', NULL),
+('Toilet Klaster IV', 'Sanitasi_Toilet', 'Petugas Kebersihan C', 'Baik', NULL),
+('Toilet Ranap Anak', 'Sanitasi_Toilet', 'Petugas Kebersihan D', 'Baik', NULL),
+('Toilet Ranap Perempuan', 'Sanitasi_Toilet', 'Petugas Kebersihan D', 'Baik', NULL),
+('Toilet Ranap Laki-Laki', 'Sanitasi_Toilet', 'Petugas Kebersihan D', 'Baik', NULL);
 
 CREATE TABLE inventories (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -175,3 +177,46 @@ INSERT INTO users (username, password, name, email, role, work_unit, phone, is_a
 ('petugas1', 'petugas123', 'Petugas Kebersihan B', 'kebersihan@puskesmas.go.id', 'petugas', 'Sanitasi & Lingkungan', '081311223344', 1),
 ('bidan_rina', 'bidan123', 'Bidan Rina, S.Tr.Keb', 'rina@puskesmas.go.id', 'pj_ruangan', 'Klaster II Ibu dan Anak', '081355667788', 1),
 ('ns_andi', 'andi123', 'Ns. Andi Pratama, S.Kep', 'andi@puskesmas.go.id', 'petugas', 'Lintas Klaster UGD', '081399887766', 1);
+
+CREATE TABLE IF NOT EXISTS app_settings (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  instansi_induk VARCHAR(255) NOT NULL DEFAULT 'PEMERINTAH KABUPATEN / KOTA',
+  dinas_kesehatan VARCHAR(255) NOT NULL DEFAULT 'DINAS KESEHATAN KABUPATEN / KOTA',
+  nama_puskesmas VARCHAR(255) NOT NULL DEFAULT 'UPTD PUSKESMAS MUARA KULAM',
+  alamat_kontak TEXT NULL,
+  kota_dokumen VARCHAR(100) DEFAULT 'Muara Kulam',
+  pimpinan_jabatan VARCHAR(150) DEFAULT 'Kepala UPTD Puskesmas',
+  pimpinan_nama VARCHAR(150) DEFAULT 'dr. H. Ahmad Fauzi, M.Kes',
+  pimpinan_nip VARCHAR(100) DEFAULT '19780512 200501 1 008',
+  pelapor_jabatan VARCHAR(150) DEFAULT 'Penanggung Jawab MFK & K3',
+  pelapor_nama VARCHAR(150) DEFAULT 'Administrator MFK / Tim Sanitasi',
+  pelapor_keterangan VARCHAR(200) DEFAULT 'Koordinator Fasilitas & Keselamatan',
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+
+INSERT INTO app_settings (
+  instansi_induk,
+  dinas_kesehatan,
+  nama_puskesmas,
+  alamat_kontak,
+  kota_dokumen,
+  pimpinan_jabatan,
+  pimpinan_nama,
+  pimpinan_nip,
+  pelapor_jabatan,
+  pelapor_nama,
+  pelapor_keterangan
+)
+SELECT 
+  'PEMERINTAH KABUPATEN / KOTA',
+  'DINAS KESEHATAN KABUPATEN / KOTA',
+  'UPTD PUSKESMAS MUARA KULAM',
+  'Jl. Lintas Muara Kulam, Telp. (0733) 123456 | Pos-el: pkm.muarakulam@dinkes.go.id',
+  'Muara Kulam',
+  'Kepala UPTD Puskesmas',
+  'dr. H. Ahmad Fauzi, M.Kes',
+  '19780512 200501 1 008',
+  'Penanggung Jawab MFK & K3',
+  'Administrator MFK / Tim Sanitasi',
+  'Koordinator Fasilitas & Keselamatan'
+WHERE NOT EXISTS (SELECT 1 FROM app_settings);

@@ -45,10 +45,13 @@ export default function Login() {
             <Building2 className="w-9 h-9 text-emerald-600" />
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-            SIM-MFK Puskesmas
+            SIKELA
           </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Sistem Informasi Manajemen Fasilitas & Keselamatan
+          <p className="mt-1 text-sm font-semibold text-emerald-800">
+            Sistem Informasi Kelola Fasilitas dan Keselamatan
+          </p>
+          <p className="text-xs text-slate-500 mt-0.5">
+            UPTD Puskesmas Muara Kulam
           </p>
           <div className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 border border-emerald-200/80 rounded-full text-xs font-semibold text-emerald-800">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />

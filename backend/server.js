@@ -61,7 +61,7 @@ app.get("/api/dashboard", async (req, res) => {
         (SELECT COUNT(*) FROM inspections WHERE status_tindak_lanjut = 'Terlambat') +
         (SELECT COUNT(*) FROM utility_reports WHERE status = 'Terlambat') AS total_terlambat`
     );
-    const [roomStatuses] = await pool.query(`SELECT id, name, category, pic_name, condition_status FROM rooms ORDER BY id ASC`);
+    const [roomStatuses] = await pool.query(`SELECT id, name, category, pic_name, condition_status, damage_description FROM rooms ORDER BY id ASC`);
     const [[inspectionStats]] = await pool.query(`SELECT COUNT(DISTINCT room_id) AS inspected_rooms, (SELECT COUNT(*) FROM rooms) AS total_rooms FROM inspections`);
     const [[urgentDamages]] = await pool.query(`SELECT COUNT(*) AS count FROM utility_reports WHERE urgency = 'Segera' AND status != 'Selesai'`);
     const [[calibratedAlkes]] = await pool.query(`SELECT COUNT(*) AS count FROM inventories WHERE (category = 'Kalibrasi' OR (category = 'Alkes' AND calibration_date IS NOT NULL))`);
@@ -133,14 +133,21 @@ app.get("/api/rooms", async (req, res) => {
 
 app.post("/api/rooms", async (req, res) => {
   try {
-    const { name, category, pic_name, condition_status } = req.body;
+    const { name, category, pic_name, pic_user_id, condition_status, damage_description } = req.body;
     if (!name || !category) {
       return res.status(400).json({ success: false, message: "Nama ruangan dan kategori wajib diisi" });
     }
 
     const [result] = await pool.query(
-      `INSERT INTO rooms (name, category, pic_name, condition_status) VALUES (?, ?, ?, ?)`,
-      [name.trim(), category, pic_name ? pic_name.trim() : "PJ Ruangan", condition_status || "Baik"]
+      `INSERT INTO rooms (name, category, pic_name, pic_user_id, condition_status, damage_description) VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        name.trim(),
+        category,
+        pic_name ? pic_name.trim() : "PJ Ruangan",
+        pic_user_id ? parseInt(pic_user_id) : null,
+        condition_status || "Baik",
+        damage_description ? damage_description.trim() : null,
+      ]
     );
 
     res.json({ success: true, id: result.insertId, message: "Ruangan berhasil ditambahkan" });
@@ -151,7 +158,7 @@ app.post("/api/rooms", async (req, res) => {
 
 app.put("/api/rooms/:id", async (req, res) => {
   try {
-    const { name, category, pic_name, condition_status } = req.body;
+    const { name, category, pic_name, pic_user_id, condition_status, damage_description } = req.body;
     const roomId = req.params.id;
 
     const [existing] = await pool.query("SELECT id FROM rooms WHERE id = ?", [roomId]);
@@ -160,8 +167,16 @@ app.put("/api/rooms/:id", async (req, res) => {
     }
 
     await pool.query(
-      `UPDATE rooms SET name = ?, category = ?, pic_name = ?, condition_status = ? WHERE id = ?`,
-      [name.trim(), category, pic_name ? pic_name.trim() : "PJ Ruangan", condition_status || "Baik", roomId]
+      `UPDATE rooms SET name = ?, category = ?, pic_name = ?, pic_user_id = ?, condition_status = ?, damage_description = ? WHERE id = ?`,
+      [
+        name.trim(),
+        category,
+        pic_name ? pic_name.trim() : "PJ Ruangan",
+        pic_user_id ? parseInt(pic_user_id) : null,
+        condition_status || "Baik",
+        damage_description ? damage_description.trim() : null,
+        roomId,
+      ]
     );
 
     res.json({ success: true, message: "Data ruangan berhasil diperbarui" });
@@ -433,6 +448,7 @@ app.get("/api/periodic-reports", async (req, res) => {
     const [inspections] = await pool.query(`SELECT ins.*, r.name AS room_name FROM inspections ins JOIN rooms r ON ins.room_id = r.id WHERE ${dateFilterInspections} ORDER BY ins.inspection_datetime DESC`, params);
     const [utilities] = await pool.query(`SELECT u.*, r.name AS room_name FROM utility_reports u JOIN rooms r ON u.room_id = r.id WHERE ${dateFilterUtility} ORDER BY u.report_datetime DESC`, params);
     const [incidents] = await pool.query(`SELECT * FROM incident_reports WHERE ${dateFilterIncident} ORDER BY incident_datetime DESC`, params);
+    const [inventories] = await pool.query(`SELECT i.*, r.name AS room_name FROM inventories i JOIN rooms r ON i.room_id = r.id ORDER BY i.category ASC, i.item_name ASC`);
 
     res.json({
       success: true,
@@ -442,8 +458,9 @@ app.get("/api/periodic-reports", async (req, res) => {
           total_inspections: inspections.length,
           total_utility_damages: utilities.length,
           total_incidents: incidents.length,
+          total_inventories: inventories.length,
         },
-        inspections, utilities, incidents,
+        inspections, utilities, incidents, inventories,
       },
     });
   } catch (err) {
@@ -513,8 +530,8 @@ app.get("/api/auth/profile", async (req, res) => {
 
 app.get("/api/users", async (req, res) => {
   try {
-    const { page, limit, offset, search } = getPaginationParams(req.query);
     const role = req.query.role || "";
+    const search = (req.query.search || "").trim();
     let whereClauses = ["1=1"];
     let params = [];
 
@@ -528,6 +545,19 @@ app.get("/api/users", async (req, res) => {
     }
 
     const whereSql = whereClauses.join(" AND ");
+
+    if (req.query.all === "true") {
+      const [rows] = await pool.query(
+        `SELECT id, username, name, email, role, work_unit, phone, is_active, created_at, updated_at 
+         FROM users 
+         WHERE ${whereSql} 
+         ORDER BY name ASC`,
+        params
+      );
+      return res.json({ success: true, data: rows });
+    }
+
+    const { page, limit, offset } = getPaginationParams(req.query);
     const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM users WHERE ${whereSql}`, params);
     const [rows] = await pool.query(
       `SELECT id, username, name, email, role, work_unit, phone, is_active, created_at, updated_at 
@@ -639,5 +669,152 @@ app.delete("/api/users/:id", async (req, res) => {
   }
 });
 
+// ==================== APP SETTINGS (KOP & PIMPINAN) ====================
+app.get("/api/settings", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT * FROM app_settings ORDER BY id ASC LIMIT 1");
+    if (rows.length === 0) {
+      await pool.query(`
+        INSERT INTO app_settings (
+          instansi_induk, dinas_kesehatan, nama_puskesmas, alamat_kontak, kota_dokumen,
+          pimpinan_jabatan, pimpinan_nama, pimpinan_nip, pelapor_jabatan, pelapor_nama, pelapor_keterangan
+        ) VALUES (
+          'PEMERINTAH KABUPATEN / KOTA',
+          'DINAS KESEHATAN KABUPATEN / KOTA',
+          'UPTD PUSKESMAS KECAMATAN',
+          'Jl. Kesehatan No. 01, Telp. (021) 1234567 | Pos-el: puskesmas@dinkes.go.id | Kode Pos 15412',
+          'Puskesmas',
+          'Kepala UPTD Puskesmas',
+          'dr. H. Ahmad Fauzi, M.Kes',
+          '19780512 200501 1 008',
+          'Penanggung Jawab MFK & K3',
+          'Administrator MFK / Tim Sanitasi',
+          'Koordinator Fasilitas & Keselamatan'
+        )
+      `);
+      const [newRows] = await pool.query("SELECT * FROM app_settings ORDER BY id ASC LIMIT 1");
+      const r = newRows[0];
+      return res.json({
+        success: true,
+        data: {
+          id: r.id,
+          instansiInduk: r.instansi_induk,
+          dinasKesehatan: r.dinas_kesehatan,
+          namaPuskesmas: r.nama_puskesmas,
+          alamatKontak: r.alamat_kontak,
+          kotaDokumen: r.kota_dokumen,
+          pimpinanJabatan: r.pimpinan_jabatan,
+          pimpinanNama: r.pimpinan_nama,
+          pimpinanNip: r.pimpinan_nip,
+          pelaporJabatan: r.pelapor_jabatan,
+          pelaporNama: r.pelapor_nama,
+          pelaporKeterangan: r.pelapor_keterangan,
+        },
+      });
+    }
+
+    const r = rows[0];
+    res.json({
+      success: true,
+      data: {
+        id: r.id,
+        instansiInduk: r.instansi_induk,
+        dinasKesehatan: r.dinas_kesehatan,
+        namaPuskesmas: r.nama_puskesmas,
+        alamatKontak: r.alamat_kontak,
+        kotaDokumen: r.kota_dokumen,
+        pimpinanJabatan: r.pimpinan_jabatan,
+        pimpinanNama: r.pimpinan_nama,
+        pimpinanNip: r.pimpinan_nip,
+        pelaporJabatan: r.pelapor_jabatan,
+        pelaporNama: r.pelapor_nama,
+        pelaporKeterangan: r.pelapor_keterangan,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.put("/api/settings", async (req, res) => {
+  try {
+    const {
+      instansiInduk,
+      dinasKesehatan,
+      namaPuskesmas,
+      alamatKontak,
+      kotaDokumen,
+      pimpinanJabatan,
+      pimpinanNama,
+      pimpinanNip,
+      pelaporJabatan,
+      pelaporNama,
+      pelaporKeterangan,
+    } = req.body;
+
+    const [rows] = await pool.query("SELECT id FROM app_settings ORDER BY id ASC LIMIT 1");
+    if (rows.length === 0) {
+      await pool.query(
+        `INSERT INTO app_settings (
+          instansi_induk, dinas_kesehatan, nama_puskesmas, alamat_kontak, kota_dokumen,
+          pimpinan_jabatan, pimpinan_nama, pimpinan_nip, pelapor_jabatan, pelapor_nama, pelapor_keterangan
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          instansiInduk || "PEMERINTAH KABUPATEN / KOTA",
+          dinasKesehatan || "DINAS KESEHATAN KABUPATEN / KOTA",
+          namaPuskesmas || "UPTD PUSKESMAS KECAMATAN",
+          alamatKontak || "",
+          kotaDokumen || "Puskesmas",
+          pimpinanJabatan || "Kepala UPTD Puskesmas",
+          pimpinanNama || "dr. H. Ahmad Fauzi, M.Kes",
+          pimpinanNip || "19780512 200501 1 008",
+          pelaporJabatan || "Penanggung Jawab MFK & K3",
+          pelaporNama || "Administrator MFK / Tim Sanitasi",
+          pelaporKeterangan || "Koordinator Fasilitas & Keselamatan",
+        ]
+      );
+    } else {
+      await pool.query(
+        `UPDATE app_settings SET 
+          instansi_induk = ?,
+          dinas_kesehatan = ?,
+          nama_puskesmas = ?,
+          alamat_kontak = ?,
+          kota_dokumen = ?,
+          pimpinan_jabatan = ?,
+          pimpinan_nama = ?,
+          pimpinan_nip = ?,
+          pelapor_jabatan = ?,
+          pelapor_nama = ?,
+          pelapor_keterangan = ?
+        WHERE id = ?`,
+        [
+          instansiInduk,
+          dinasKesehatan,
+          namaPuskesmas,
+          alamatKontak,
+          kotaDokumen,
+          pimpinanJabatan,
+          pimpinanNama,
+          pimpinanNip,
+          pelaporJabatan,
+          pelaporNama,
+          pelaporKeterangan,
+          rows[0].id,
+        ]
+      );
+    }
+
+    res.json({
+      success: true,
+      message: "Pengaturan KOP & Pejabat Penandatangan berhasil disimpan ke database",
+      data: req.body,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 app.listen(PORT, () => console.log(`Server MFK Puskesmas berjalan di http://localhost:${PORT}`));
+
 

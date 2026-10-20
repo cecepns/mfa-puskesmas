@@ -22,10 +22,22 @@ import {
   CheckSquare,
   AlertCircle,
   XCircle,
+  Package,
+  Settings,
+  Edit,
+  RotateCcw,
+  Lock,
 } from "lucide-react";
+import { useAuth } from "../context/AuthContext";
 import { request } from "../utils/request";
 import { API_ENDPOINTS } from "../utils/endpoints";
 import toast from "react-hot-toast";
+import Modal from "../components/Common/Modal";
+import {
+  downloadMFKReportPDF,
+  INSPECTION_CATEGORIES,
+  DEFAULT_KOP_CONFIG,
+} from "../utils/pdfGenerator";
 
 const MONTHS = [
   { value: "01", label: "Januari" },
@@ -45,12 +57,65 @@ const MONTHS = [
 const YEARS = ["2024", "2025", "2026", "2027"];
 
 export default function LaporanPeriodik() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+
   const [periodType, setPeriodType] = useState("monthly");
   const [month, setMonth] = useState("10");
   const [year, setYear] = useState("2026");
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("inspeksi"); // "inspeksi" | "utilitas" | "insiden" | "pengesahan"
+  const [activeTab, setActiveTab] = useState("inspeksi"); // "inspeksi" | "utilitas" | "insiden" | "inventaris" | "pengesahan"
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
+  const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [isKopModalOpen, setIsKopModalOpen] = useState(false);
+
+  // KOP & Tanda Tangan Configuration (Persisted in DB & localStorage)
+  const [kopConfig, setKopConfig] = useState(() => {
+    try {
+      const saved = localStorage.getItem("mfk_kop_config");
+      return saved ? { ...DEFAULT_KOP_CONFIG, ...JSON.parse(saved) } : DEFAULT_KOP_CONFIG;
+    } catch {
+      return DEFAULT_KOP_CONFIG;
+    }
+  });
+  const [tempKopConfig, setTempKopConfig] = useState(kopConfig);
+
+  const fetchKopSettings = async () => {
+    try {
+      const res = await request.get(API_ENDPOINTS.SETTINGS.GET);
+      if (res.data) {
+        const merged = { ...DEFAULT_KOP_CONFIG, ...res.data };
+        setKopConfig(merged);
+        setTempKopConfig(merged);
+        try {
+          localStorage.setItem("mfk_kop_config", JSON.stringify(merged));
+        } catch {}
+      }
+    } catch (err) {
+      console.warn("Using fallback/cached kop config:", err);
+    }
+  };
+
+  const handleSaveKop = async (e) => {
+    e?.preventDefault();
+    try {
+      await request.put(API_ENDPOINTS.SETTINGS.UPDATE, tempKopConfig);
+      setKopConfig(tempKopConfig);
+      try {
+        localStorage.setItem("mfk_kop_config", JSON.stringify(tempKopConfig));
+      } catch {}
+      setIsKopModalOpen(false);
+      toast.success("Pengaturan KOP & Tanda Tangan berhasil disimpan ke database!");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Gagal menyimpan ke database");
+    }
+  };
+
+  const handleResetKop = () => {
+    setTempKopConfig(DEFAULT_KOP_CONFIG);
+    toast("Form dikembalikan ke nilai default, klik 'Simpan Pengaturan' untuk menerapkan ke database.");
+  };
 
   const fetchReport = async () => {
     setLoading(true);
@@ -72,16 +137,28 @@ export default function LaporanPeriodik() {
     fetchReport();
   }, [periodType, month, year]);
 
+  useEffect(() => {
+    fetchKopSettings();
+  }, []);
+
+  const periodLabel =
+    periodType === "monthly"
+      ? `Bulan ${MONTHS.find((m) => m.value === month)?.label || month} ${year}`
+      : `Tahun ${year}`;
+
   const downloadCSV = () => {
+    if (!isAdmin) {
+      toast.error("Akses ditolak: Unduh laporan CSV khusus untuk Administrator!");
+      return;
+    }
     if (!reportData) return;
-    const periodLabel =
-      periodType === "monthly"
-        ? `Bulan ${MONTHS.find((m) => m.value === month)?.label || month} ${year}`
-        : `Tahun ${year}`;
 
     const rows = [
+      [kopConfig.instansiInduk || "PEMERINTAH KABUPATEN / KOTA"],
+      [kopConfig.dinasKesehatan || "DINAS KESEHATAN KABUPATEN / KOTA"],
+      [kopConfig.namaPusKESMAS || kopConfig.namaPuskesmas || "UPTD PUSKESMAS MUARA KULAM"],
+      [`Alamat: ${kopConfig.alamatKontak || "-"}`],
       ["LAPORAN PROGRAM MANAJEMEN FASILITAS DAN KESELAMATAN (MFK)"],
-      ["UPTD PUSKESMAS"],
       [`Periode: ${periodLabel}`],
       [],
       ["I. REKAPITULASI INSPEKSI BERKALA FASILITAS & SANITASI"],
@@ -128,6 +205,27 @@ export default function LaporanPeriodik() {
         inc.initial_action,
         inc.status,
       ]),
+      [],
+      ["IV. REKAPITULASI INVENTARISASI SARPRAS, B3 & ALKES"],
+      ["No", "Nama Aset / Barang", "Kategori", "Ruangan", "Jumlah", "Satuan", "Kondisi", "Kalibrasi Terakhir", "Jadwal Kalibrasi Berikutnya", "Lembaga Penguji", "Catatan"],
+      ...(reportData.inventories || []).map((inv, idx) => [
+        idx + 1,
+        inv.item_name,
+        inv.category,
+        inv.room_name,
+        inv.quantity,
+        inv.unit,
+        inv.condition_status,
+        inv.calibration_date || "-",
+        inv.next_calibration_date || "-",
+        inv.calibration_institution || "-",
+        inv.notes || "-",
+      ]),
+      [],
+      ["LEMBAR PENGESAHAN"],
+      [`Ditetapkan di: ${kopConfig.kotaDokumen || "Muara Kulam"}, Tanggal: ${new Date().toLocaleDateString("id-ID")}`],
+      [`Mengetahui & Menyetujui: ${kopConfig.pimpinanJabatan} - ${kopConfig.pimpinanNama} (NIP. ${kopConfig.pimpinanNip})`],
+      [`Dilaporkan Oleh: ${kopConfig.pelaporJabatan} - ${kopConfig.pelaporNama} (${kopConfig.pelaporKeterangan})`],
     ];
 
     const csvContent =
@@ -136,11 +234,47 @@ export default function LaporanPeriodik() {
 
     const link = document.createElement("a");
     link.setAttribute("href", encodeURI(csvContent));
-    link.setAttribute("download", `Laporan_MFK_Puskesmas_${periodType}_${year}_${month}.csv`);
+    link.setAttribute("download", `Laporan_SIKELA_${(kopConfig.namaPuskesmas || "Puskesmas").replace(/\s+/g, "_")}_${periodType}_${year}_${month}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     toast.success("Laporan CSV berhasil diunduh");
+  };
+
+  const handleDownloadPDF = (categoryMode = "all") => {
+    if (!isAdmin) {
+      toast.error("Akses ditolak: Unduh laporan PDF khusus untuk Administrator!");
+      return;
+    }
+    if (!reportData) {
+      toast.error("Data laporan belum siap");
+      return;
+    }
+    setGeneratingPdf(true);
+    try {
+      downloadMFKReportPDF({
+        reportData,
+        mode: categoryMode,
+        periodLabel,
+        kopConfig,
+      });
+      const label =
+        categoryMode === "all"
+          ? "Laporan Gabungan MFK"
+          : categoryMode === "utilitas"
+          ? "Laporan Kerusakan Utilitas"
+          : categoryMode === "insiden"
+          ? "Laporan Insiden K3"
+          : categoryMode === "inventaris"
+          ? "Laporan Inventarisasi Sarpras & Alkes"
+          : `Laporan ${categoryMode}`;
+      toast.success(`${label} berhasil diunduh dalam format PDF`);
+    } catch (err) {
+      console.error("PDF generation error:", err);
+      toast.error("Gagal membuat dokumen PDF");
+    } finally {
+      setGeneratingPdf(false);
+    }
   };
 
   const handlePrint = () => {
@@ -193,20 +327,44 @@ export default function LaporanPeriodik() {
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
           </button>
-          <button
-            onClick={downloadCSV}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm rounded-xl shadow-md shadow-emerald-600/20 transition cursor-pointer"
-          >
-            <Download className="w-4 h-4" />
-            <span>Export CSV (Excel)</span>
-          </button>
-          <button
-            onClick={handlePrint}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-medium text-sm rounded-xl shadow-md transition cursor-pointer"
-          >
-            <Printer className="w-4 h-4" />
-            <span>Cetak PDF / Print</span>
-          </button>
+
+          {isAdmin ? (
+            <>
+              <button
+                onClick={() => {
+                  setTempKopConfig(kopConfig);
+                  setIsKopModalOpen(true);
+                }}
+                className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-sm rounded-xl transition cursor-pointer shadow-xs"
+                title="Atur KOP Surat dan Pejabat Penandatangan"
+              >
+                <Settings className="w-4 h-4 text-emerald-600" />
+                <span>Atur KOP & Pimpinan</span>
+              </button>
+              <button
+                onClick={downloadCSV}
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm rounded-xl shadow-md shadow-emerald-600/20 transition cursor-pointer"
+              >
+                <Download className="w-4 h-4" />
+                <span>Export CSV (Excel)</span>
+              </button>
+              <button
+                onClick={() => setIsPdfModalOpen(true)}
+                className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-medium text-sm rounded-xl shadow-md transition cursor-pointer"
+              >
+                <FileText className="w-4 h-4 text-emerald-400" />
+                <span>Download PDF Laporan</span>
+              </button>
+            </>
+          ) : (
+            <div
+              className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 text-slate-500 rounded-xl text-xs font-medium border border-slate-200"
+              title="Unduh laporan resmi PDF & CSV dibatasi khusus untuk Akun Administrator"
+            >
+              <Lock className="w-3.5 h-3.5 text-slate-400" />
+              <span>Download Khusus Admin</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -278,29 +436,29 @@ export default function LaporanPeriodik() {
       <div className="hidden print:block border-b-2 border-slate-800 pb-4 mb-6">
         <div className="text-center space-y-1">
           <p className="text-xs font-bold uppercase tracking-widest text-slate-600">
-            PEMERINTAH KABUPATEN / KOTA • DINAS KESEHATAN
+            {kopConfig.instansiInduk || "PEMERINTAH KABUPATEN / KOTA"} • {kopConfig.dinasKesehatan || "DINAS KESEHATAN KABUPATEN / KOTA"}
           </p>
           <h1 className="text-xl font-extrabold uppercase text-slate-900 tracking-wider">
-            UPTD PUSKESMAS KELAS RAWAT INAP
+            {kopConfig.namaPuskesmas || "UPTD PUSKESMAS KECAMATAN"}
           </h1>
           <p className="text-xs text-slate-500">
-            Jl. Raya Kesehatan No. 01 • Telp: (021) 1234567 • Email: puskesmas@dinkes.go.id
+            {kopConfig.alamatKontak || "-"}
           </p>
           <div className="mt-3 pt-2 border-t border-slate-400">
             <h2 className="text-base font-bold text-slate-900 uppercase">
               LAPORAN PROGRAM MANAJEMEN FASILITAS DAN KESELAMATAN (MFK)
             </h2>
             <p className="text-xs text-slate-600 font-medium">
-              Periode: {periodType === "monthly" ? `${MONTHS.find((m) => m.value === month)?.label} ${year}` : `Tahun ${year}`}
+              Periode: {periodLabel}
             </p>
           </div>
         </div>
       </div>
 
       {/* KPI Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
         {/* Card 1: Inspeksi */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
             <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">
               <ClipboardCheck className="w-4 h-4 text-emerald-600" />
@@ -311,13 +469,13 @@ export default function LaporanPeriodik() {
               <CheckCircle2 className="w-3.5 h-3.5" /> {goodInspections} Sesuai Standar
             </p>
           </div>
-          <div className="p-3.5 rounded-2xl bg-emerald-50 text-emerald-600">
-            <ClipboardCheck className="w-6 h-6" />
+          <div className="p-3 rounded-2xl bg-emerald-50 text-emerald-600">
+            <ClipboardCheck className="w-5 h-5" />
           </div>
         </div>
 
         {/* Card 2: Kerusakan Utilitas */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
             <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">
               <Wrench className="w-4 h-4 text-amber-600" />
@@ -326,33 +484,50 @@ export default function LaporanPeriodik() {
             <p className="text-2xl font-bold text-slate-900 mt-2">{utilitiesCount}</p>
             <p className="text-xs text-amber-700 mt-1 font-medium flex items-center gap-1">
               <Flame className="w-3.5 h-3.5" />
-              {reportData?.utilities?.filter((u) => u.urgency === "Segera").length || 0} Perlu Penanganan Segera
+              {reportData?.utilities?.filter((u) => u.urgency === "Segera").length || 0} Urgensi Segera
             </p>
           </div>
-          <div className="p-3.5 rounded-2xl bg-amber-50 text-amber-600">
-            <Wrench className="w-6 h-6" />
+          <div className="p-3 rounded-2xl bg-amber-50 text-amber-600">
+            <Wrench className="w-5 h-5" />
           </div>
         </div>
 
         {/* Card 3: Insiden Keselamatan */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
             <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">
               <ShieldAlert className="w-4 h-4 text-rose-600" />
-              <span>Insiden Keselamatan</span>
+              <span>Insiden K3</span>
             </div>
             <p className="text-2xl font-bold text-slate-900 mt-2">{incidentsCount}</p>
             <p className="text-xs text-rose-700 mt-1 font-medium flex items-center gap-1">
               <AlertTriangle className="w-3.5 h-3.5" /> Kasus K3 & Pasien
             </p>
           </div>
-          <div className="p-3.5 rounded-2xl bg-rose-50 text-rose-600">
-            <ShieldAlert className="w-6 h-6" />
+          <div className="p-3 rounded-2xl bg-rose-50 text-rose-600">
+            <ShieldAlert className="w-5 h-5" />
           </div>
         </div>
 
-        {/* Card 4: Kepatuhan Standar */}
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+        {/* Card 4: Inventarisasi Aset & Alkes */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              <Package className="w-4 h-4 text-blue-600" />
+              <span>Aset & Sarpras</span>
+            </div>
+            <p className="text-2xl font-bold text-slate-900 mt-2">{reportData?.inventories?.length || 0}</p>
+            <p className="text-xs text-blue-700 mt-1 font-medium flex items-center gap-1">
+              <Layers className="w-3.5 h-3.5" /> Terinventarisasi
+            </p>
+          </div>
+          <div className="p-3 rounded-2xl bg-blue-50 text-blue-600">
+            <Package className="w-5 h-5" />
+          </div>
+        </div>
+
+        {/* Card 5: Kepatuhan Standar */}
+        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
             <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">
               <Award className="w-4 h-4 text-teal-600" />
@@ -363,8 +538,8 @@ export default function LaporanPeriodik() {
               <TrendingUp className="w-3.5 h-3.5" /> Kepatuhan Sarpras
             </p>
           </div>
-          <div className="p-3.5 rounded-2xl bg-teal-50 text-teal-600">
-            <Award className="w-6 h-6" />
+          <div className="p-3 rounded-2xl bg-teal-50 text-teal-600">
+            <Award className="w-5 h-5" />
           </div>
         </div>
       </div>
@@ -408,6 +583,18 @@ export default function LaporanPeriodik() {
         </button>
 
         <button
+          onClick={() => setActiveTab("inventaris")}
+          className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition cursor-pointer ${
+            activeTab === "inventaris"
+              ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
+              : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+          }`}
+        >
+          <Package className="w-4 h-4" />
+          <span>Rekap Inventarisasi ({reportData?.inventories?.length || 0})</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab("pengesahan")}
           className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition cursor-pointer ${
             activeTab === "pengesahan"
@@ -425,16 +612,27 @@ export default function LaporanPeriodik() {
         {/* TAB 1: INSPEKSI */}
         {(activeTab === "inspeksi" || window.matchMedia?.("print")?.matches) && (
           <div>
-            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/60">
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row gap-3 sm:items-center justify-between bg-slate-50/60">
               <div className="flex items-center gap-2">
                 <CheckSquare className="w-5 h-5 text-emerald-600" />
                 <h3 className="font-bold text-slate-800 text-base">
                   Daftar Inspeksi Fasilitas, Sanitasi & Lingkungan
                 </h3>
               </div>
-              <span className="text-xs text-slate-500">
-                Total: <b>{reportData?.inspections?.length || 0}</b> pemeriksaan
-              </span>
+              <div className="flex items-center gap-3">
+                {isAdmin && (
+                  <button
+                    onClick={() => setIsPdfModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-lg text-xs font-semibold border border-emerald-200 transition cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Download PDF Per Inspeksi</span>
+                  </button>
+                )}
+                <span className="text-xs text-slate-500">
+                  Total: <b>{reportData?.inspections?.length || 0}</b> pemeriksaan
+                </span>
+              </div>
             </div>
 
             <div className="overflow-x-auto">
@@ -727,33 +925,195 @@ export default function LaporanPeriodik() {
           </div>
         )}
 
-        {/* TAB 4: LEMBAR PENGESAHAN */}
+        {/* TAB 4: INVENTARIS */}
+        {activeTab === "inventaris" && (
+          <div>
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row gap-3 sm:items-center justify-between bg-slate-50/60">
+              <div className="flex items-center gap-2">
+                <Package className="w-5 h-5 text-blue-600" />
+                <div>
+                  <h3 className="font-bold text-slate-800 text-base">
+                    Rekapitulasi Inventarisasi Sarpras, B3 & Alat Kesehatan
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Daftar seluruh sarana, prasarana, bahan berbahaya (B3), dan alat medis yang terdata di ruangan Puskesmas
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {isAdmin && (
+                  <button
+                    onClick={() => handleDownloadPDF("inventaris")}
+                    disabled={generatingPdf}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 rounded-lg text-xs font-semibold border border-blue-200 transition cursor-pointer disabled:opacity-50"
+                  >
+                    <Download className="w-3.5 h-3.5 text-blue-600" />
+                    <span>Download PDF Inventaris</span>
+                  </button>
+                )}
+                <span className="text-xs text-slate-500">
+                  Total: <b>{reportData?.inventories?.length || 0}</b> aset
+                </span>
+              </div>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse min-w-[900px]">
+                <thead>
+                  <tr className="bg-slate-50/90 text-slate-600 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
+                    <th className="px-4 py-3.5 w-14 text-center">No</th>
+                    <th className="px-4 py-3.5 min-w-[200px]">Nama Aset / Barang</th>
+                    <th className="px-4 py-3.5 w-36">Kategori</th>
+                    <th className="px-4 py-3.5 w-40">Ruangan</th>
+                    <th className="px-4 py-3.5 w-28 text-center">Jumlah</th>
+                    <th className="px-4 py-3.5 w-32 text-center">Kondisi</th>
+                    <th className="px-4 py-3.5 w-44">Status Kalibrasi</th>
+                    <th className="px-4 py-3.5 min-w-[150px]">Catatan</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
+                  {!reportData?.inventories?.length ? (
+                    <tr>
+                      <td colSpan="8" className="px-4 py-8 text-center text-slate-400">
+                        Belum ada data inventarisasi sarpras atau alkes terdaftar.
+                      </td>
+                    </tr>
+                  ) : (
+                    reportData.inventories.map((inv, idx) => (
+                      <tr key={inv.id || idx} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="px-4 py-3.5 text-center text-xs text-slate-400 font-medium">
+                          {idx + 1}
+                        </td>
+                        <td className="px-4 py-3.5 text-xs font-semibold text-slate-800">
+                          {inv.item_name}
+                        </td>
+                        <td className="px-4 py-3.5 text-xs">
+                          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                            inv.category === "Alat Medis" || inv.category === "Alkes"
+                              ? "bg-blue-100 text-blue-800"
+                              : inv.category === "B3" || inv.category?.includes("B3")
+                              ? "bg-purple-100 text-purple-800"
+                              : inv.category === "Utilitas"
+                              ? "bg-amber-100 text-amber-800"
+                              : "bg-slate-100 text-slate-700"
+                          }`}>
+                            {inv.category}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3.5 text-xs text-slate-700 font-medium">
+                          {inv.room_name || "-"}
+                        </td>
+                        <td className="px-4 py-3.5 text-center text-xs font-semibold text-slate-800">
+                          {inv.quantity} <span className="text-slate-500 font-normal">{inv.unit || "Unit"}</span>
+                        </td>
+                        <td className="px-4 py-3.5 text-center whitespace-nowrap">
+                          {inv.condition_status === "Baik" ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Baik
+                            </span>
+                          ) : inv.condition_status === "Perlu Perbaikan" || inv.condition_status === "Rusak Ringan" ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                              <AlertCircle className="w-3 h-3 text-amber-600" /> Rusak Ringan
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+                              <XCircle className="w-3 h-3 text-rose-600" /> Rusak Berat
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3.5 text-xs">
+                          {inv.calibration_date ? (
+                            <div>
+                              <div className="font-medium text-slate-800">
+                                Terakhir: <span className="text-slate-600">{inv.calibration_date}</span>
+                              </div>
+                              {inv.next_calibration_date && (
+                                <div className="text-[11px] text-blue-600 font-medium mt-0.5">
+                                  Berikutnya: {inv.next_calibration_date}
+                                </div>
+                              )}
+                              {inv.calibration_institution && (
+                                <div className="text-[10px] text-slate-400">
+                                  Oleh: {inv.calibration_institution}
+                                </div>
+                              )}
+                            </div>
+                          ) : inv.needs_calibration ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-100 text-amber-800">
+                              <Clock className="w-3 h-3" /> Wajib Kalibrasi
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 text-xs">-</span>
+                          )}
+                        </td>
+                        <td className="px-4 py-3.5 text-xs text-slate-500">
+                          {inv.notes || "-"}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 5: LEMBAR PENGESAHAN */}
         {activeTab === "pengesahan" && (
           <div className="p-6 sm:p-8 space-y-6">
             <div className="border border-slate-200 rounded-2xl p-6 bg-slate-50/50 space-y-4">
-              <div className="flex items-center gap-3 border-b border-slate-200 pb-3">
-                <FileText className="w-6 h-6 text-emerald-600" />
-                <div>
-                  <h4 className="font-bold text-base text-slate-800">
-                    Lembar Ringkasan Eksekutif & Bukti Kepatuhan Akreditasi
-                  </h4>
-                  <p className="text-xs text-slate-500">
-                    Dokumen ini memvalidasi pemenuhan Standar Manajemen Fasilitas dan Keselamatan (MFK 1 - MFK 10)
-                  </p>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-200 pb-3">
+                <div className="flex items-center gap-3">
+                  <FileText className="w-6 h-6 text-emerald-600" />
+                  <div>
+                    <h4 className="font-bold text-base text-slate-800">
+                      Lembar Ringkasan Eksekutif & Pengesahan Dokumen MFK
+                    </h4>
+                    <p className="text-xs text-slate-500">
+                      KOP surat dan nama pejabat penandatangan resmi yang tersimpan di sistem
+                    </p>
+                  </div>
                 </div>
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTempKopConfig(kopConfig);
+                      setIsKopModalOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 rounded-xl text-xs font-semibold border border-emerald-200 transition cursor-pointer shrink-0"
+                  >
+                    <Edit className="w-3.5 h-3.5 text-emerald-600" />
+                    <span>Ubah KOP & Pejabat</span>
+                  </button>
+                )}
+              </div>
+
+              {/* KOP Surat Preview in Pengesahan */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200 text-center space-y-1">
+                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                  {kopConfig.instansiInduk || "PEMERINTAH KABUPATEN / KOTA"}
+                </p>
+                <p className="text-xs font-extrabold uppercase tracking-wide text-slate-800">
+                  {kopConfig.dinasKesehatan || "DINAS KESEHATAN KABUPATEN / KOTA"}
+                </p>
+                <h4 className="text-base font-black uppercase text-emerald-700 tracking-wide">
+                  {kopConfig.namaPuskesmas || "UPTD PUSKESMAS KECAMATAN"}
+                </h4>
+                <p className="text-[10px] text-slate-500">
+                  {kopConfig.alamatKontak || "-"}
+                </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-2">
                   <div className="flex justify-between py-1.5 border-b border-slate-200">
                     <span className="text-slate-500">Nama Fasilitas Pelayanan:</span>
-                    <span className="font-semibold text-slate-800">UPTD Puskesmas</span>
+                    <span className="font-semibold text-slate-800">{kopConfig.namaPuskesmas || "UPTD Puskesmas"}</span>
                   </div>
                   <div className="flex justify-between py-1.5 border-b border-slate-200">
                     <span className="text-slate-500">Periode Evaluasi:</span>
-                    <span className="font-semibold text-slate-800">
-                      {periodType === "monthly" ? `Bulan ${MONTHS.find((m) => m.value === month)?.label} ${year}` : `Tahun ${year}`}
-                    </span>
+                    <span className="font-semibold text-slate-800">{periodLabel}</span>
                   </div>
                   <div className="flex justify-between py-1.5 border-b border-slate-200">
                     <span className="text-slate-500">Tingkat Kepatuhan Fisik:</span>
@@ -771,8 +1131,8 @@ export default function LaporanPeriodik() {
                     <span className="font-semibold text-slate-800">{utilitiesCount} Kasus</span>
                   </div>
                   <div className="flex justify-between py-1.5 border-b border-slate-200">
-                    <span className="text-slate-500">Kejadian / Insiden K3:</span>
-                    <span className="font-semibold text-slate-800">{incidentsCount} Kejadian</span>
+                    <span className="text-slate-500">Aset & Sarpras Terdata:</span>
+                    <span className="font-semibold text-slate-800">{reportData?.inventories?.length || 0} Barang</span>
                   </div>
                 </div>
               </div>
@@ -784,26 +1144,31 @@ export default function LaporanPeriodik() {
             </div>
 
             {/* Official Signature Section */}
-            <div className="grid grid-cols-2 gap-8 pt-6 border-t border-slate-200 text-center text-xs">
-              <div className="space-y-16">
-                <div>
-                  <p className="text-slate-500">Mengetahui & Menyetujui,</p>
-                  <p className="font-bold text-slate-800">Kepala UPTD Puskesmas</p>
+            <div className="pt-2">
+              <p className="text-xs text-right text-slate-500 mb-4">
+                Ditetapkan di: <span className="font-semibold text-slate-700">{kopConfig.kotaDokumen || "Puskesmas"}</span>, Tanggal: {new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
+              </p>
+              <div className="grid grid-cols-2 gap-8 pt-4 border-t border-slate-200 text-center text-xs">
+                <div className="space-y-16">
+                  <div>
+                    <p className="text-slate-500">Mengetahui & Menyetujui,</p>
+                    <p className="font-bold text-slate-800">{kopConfig.pimpinanJabatan || "Kepala UPTD Puskesmas"}</p>
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-900 underline text-sm">{kopConfig.pimpinanNama || "dr. H. Ahmad Fauzi, M.Kes"}</p>
+                    <p className="text-slate-500 text-[11px] mt-0.5">NIP. {kopConfig.pimpinanNip || "-"}</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="font-bold text-slate-900 underline">dr. H. Ahmad Fauzi, M.Kes</p>
-                  <p className="text-slate-500 text-[11px]">NIP. 19780512 200501 1 008</p>
-                </div>
-              </div>
 
-              <div className="space-y-16">
-                <div>
-                  <p className="text-slate-500">Dilaporkan Oleh,</p>
-                  <p className="font-bold text-slate-800">Penanggung Jawab MFK & K3</p>
-                </div>
-                <div>
-                  <p className="font-bold text-slate-900 underline">Administrator MFK / Tim Sanitasi</p>
-                  <p className="text-slate-500 text-[11px]">Koordinator Fasilitas & Keselamatan</p>
+                <div className="space-y-16">
+                  <div>
+                    <p className="text-slate-500">Dilaporkan Oleh,</p>
+                    <p className="font-bold text-slate-800">{kopConfig.pelaporJabatan || "Penanggung Jawab MFK & K3"}</p>
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-900 underline text-sm">{kopConfig.pelaporNama || "Administrator MFK / Tim Sanitasi"}</p>
+                    <p className="text-slate-500 text-[11px] mt-0.5">{kopConfig.pelaporKeterangan || "Koordinator Fasilitas & Keselamatan"}</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -812,29 +1177,419 @@ export default function LaporanPeriodik() {
       </div>
 
       {/* Signature in Print View */}
-      <div className="hidden print:grid grid-cols-2 gap-8 pt-8 text-center text-xs">
-        <div className="space-y-16">
-          <div>
-            <p className="text-slate-500">Mengetahui,</p>
-            <p className="font-bold text-slate-900">Kepala UPTD Puskesmas</p>
+      <div className="hidden print:block pt-8 text-xs">
+        <p className="text-right text-slate-600 mb-4">
+          Ditetapkan di: {kopConfig.kotaDokumen || "Puskesmas"}, Tanggal: {new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
+        </p>
+        <div className="grid grid-cols-2 gap-8 text-center">
+          <div className="space-y-16">
+            <div>
+              <p className="text-slate-500">Mengetahui & Menyetujui,</p>
+              <p className="font-bold text-slate-900">{kopConfig.pimpinanJabatan || "Kepala UPTD Puskesmas"}</p>
+            </div>
+            <div>
+              <p className="font-bold text-slate-900 underline text-sm">{kopConfig.pimpinanNama || "dr. H. Ahmad Fauzi, M.Kes"}</p>
+              <p className="text-slate-500 text-[11px]">NIP. {kopConfig.pimpinanNip || "-"}</p>
+            </div>
           </div>
-          <div>
-            <p className="font-bold text-slate-900 underline">dr. H. Ahmad Fauzi, M.Kes</p>
-            <p className="text-slate-500 text-[11px]">NIP. 19780512 200501 1 008</p>
-          </div>
-        </div>
 
-        <div className="space-y-16">
-          <div>
-            <p className="text-slate-500">Dilaporkan Oleh,</p>
-            <p className="font-bold text-slate-900">Penanggung Jawab MFK & K3</p>
-          </div>
-          <div>
-            <p className="font-bold text-slate-900 underline">Administrator MFK / Tim Sanitasi</p>
-            <p className="text-slate-500 text-[11px]">Koordinator Keselamatan Fasilitas</p>
+          <div className="space-y-16">
+            <div>
+              <p className="text-slate-500">Dilaporkan Oleh,</p>
+              <p className="font-bold text-slate-900">{kopConfig.pelaporJabatan || "Penanggung Jawab MFK & K3"}</p>
+            </div>
+            <div>
+              <p className="font-bold text-slate-900 underline text-sm">{kopConfig.pelaporNama || "Administrator MFK / Tim Sanitasi"}</p>
+              <p className="text-slate-500 text-[11px]">{kopConfig.pelaporKeterangan || "Koordinator Fasilitas & Keselamatan"}</p>
+            </div>
           </div>
         </div>
       </div>
+
+      {/* Modal Cetak & Download PDF Laporan */}
+      <Modal
+        isOpen={isPdfModalOpen}
+        onClose={() => setIsPdfModalOpen(false)}
+        title="Download Laporan PDF (Akreditasi MFK)"
+      >
+        <div className="space-y-5 text-sm">
+          {/* Periode Info Banner */}
+          <div className="p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-xl flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-emerald-800 uppercase tracking-wider">
+                Periode Laporan Terpilih
+              </p>
+              <p className="font-bold text-slate-800 text-sm mt-0.5">
+                {periodLabel}
+              </p>
+            </div>
+            <span className="px-2.5 py-1 bg-white text-emerald-700 text-xs font-bold rounded-lg border border-emerald-200 shadow-xs">
+              Resmi Puskesmas
+            </span>
+          </div>
+
+          {/* Opsi 1: Laporan Gabungan */}
+          <div className="p-4 bg-slate-900 text-white rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-md">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500 text-slate-950">
+                  Lengkap
+                </span>
+                <h4 className="font-bold text-sm text-white">Laporan Gabungan MFK</h4>
+              </div>
+              <p className="text-xs text-slate-300 mt-1 max-w-md">
+                Seluruh rekapitulasi 8 jenis inspeksi sarana fasilitas, pelaporan kerusakan utilitas, dan insiden K3 dalam satu dokumen resmi ber-KOP & lembar pengesahan.
+              </p>
+            </div>
+            <button
+              onClick={() => handleDownloadPDF("all")}
+              disabled={generatingPdf}
+              className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs rounded-xl transition shadow cursor-pointer shrink-0 disabled:opacity-50"
+            >
+              <Download className="w-4 h-4" />
+              <span>{generatingPdf ? "Memproses..." : "Download PDF Gabungan"}</span>
+            </button>
+          </div>
+
+          {/* Opsi 2: Download Terpisah Per Jenis Inspeksi (8 Kategori) */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                <Layers className="w-4 h-4 text-emerald-600" />
+                <span>Download Terpisah Per Jenis Inspeksi (8 Kategori)</span>
+              </h4>
+              <span className="text-xs text-slate-400">Pilih kategori spesifik</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[260px] overflow-y-auto pr-1">
+              {INSPECTION_CATEGORIES.map((catName) => {
+                const count = (reportData?.inspections || []).filter(
+                  (i) => i.inspection_type === catName
+                ).length;
+                return (
+                  <div
+                    key={catName}
+                    className="p-2.5 bg-white border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/20 rounded-xl flex items-center justify-between transition gap-2"
+                  >
+                    <div>
+                      <p className="font-semibold text-slate-800 text-xs">{catName}</p>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        {count > 0 ? (
+                          <span className="text-emerald-600 font-medium">{count} data pemeriksaan</span>
+                        ) : (
+                          "0 data pada periode ini"
+                        )}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleDownloadPDF(catName)}
+                      disabled={generatingPdf}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-emerald-600 hover:text-white text-slate-700 text-xs font-semibold rounded-lg transition cursor-pointer shrink-0 disabled:opacity-50"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>PDF</span>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Opsi 3: Laporan Khusus Lainnya */}
+          <div>
+            <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider mb-2 flex items-center gap-1.5">
+              <Wrench className="w-4 h-4 text-amber-600" />
+              <span>Laporan Khusus Utilitas, Insiden & Inventaris</span>
+            </h4>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="p-2.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between gap-2">
+                <div>
+                  <p className="font-semibold text-slate-800 text-xs">Utilitas</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    {reportData?.utilities?.length || 0} laporan
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleDownloadPDF("utilitas")}
+                  disabled={generatingPdf}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-amber-50 text-amber-800 hover:bg-amber-600 hover:text-white border border-amber-200 text-xs font-semibold rounded-lg transition cursor-pointer shrink-0 disabled:opacity-50"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>PDF</span>
+                </button>
+              </div>
+
+              <div className="p-2.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between gap-2">
+                <div>
+                  <p className="font-semibold text-slate-800 text-xs">Insiden K3</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    {reportData?.incidents?.length || 0} kasus
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleDownloadPDF("insiden")}
+                  disabled={generatingPdf}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 text-rose-800 hover:bg-rose-600 hover:text-white border border-rose-200 text-xs font-semibold rounded-lg transition cursor-pointer shrink-0 disabled:opacity-50"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>PDF</span>
+                </button>
+              </div>
+
+              <div className="p-2.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between gap-2">
+                <div>
+                  <p className="font-semibold text-slate-800 text-xs">Aset & Sarpras</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    {reportData?.inventories?.length || 0} barang
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleDownloadPDF("inventaris")}
+                  disabled={generatingPdf}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 text-blue-800 hover:bg-blue-600 hover:text-white border border-blue-200 text-xs font-semibold rounded-lg transition cursor-pointer shrink-0 disabled:opacity-50"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>PDF</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer Actions */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={handlePrint}
+              className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-800 font-medium cursor-pointer"
+            >
+              <Printer className="w-4 h-4 text-slate-400" />
+              <span>Buka Print Preview Browser (Ctrl+P)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsPdfModalOpen(false)}
+              className="w-full sm:w-auto px-5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition cursor-pointer"
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal Pengaturan KOP Surat & Pejabat Penandatangan */}
+      <Modal
+        isOpen={isKopModalOpen}
+        onClose={() => setIsKopModalOpen(false)}
+        title="Pengaturan KOP Surat & Pejabat Penandatangan"
+      >
+        <form onSubmit={handleSaveKop} className="space-y-5 text-sm">
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-800">
+            Perubahan KOP dan nama pejabat akan disimpan ke <b>Database MySQL Server</b> dan otomatis diterapkan pada <b>Cetak PDF</b>, <b>Print Out Browser</b>, dan <b>Export CSV Excel</b>.
+          </div>
+
+          {/* Section 1: KOP Surat */}
+          <div className="space-y-3">
+            <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-200 pb-1.5">
+              <Building className="w-4 h-4 text-emerald-600" />
+              <span>Format KOP Surat Resmi Puskesmas</span>
+            </h4>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Instansi Induk / Pemerintah Daerah
+                </label>
+                <input
+                  type="text"
+                  value={tempKopConfig.instansiInduk || ""}
+                  onChange={(e) => setTempKopConfig({ ...tempKopConfig, instansiInduk: e.target.value })}
+                  placeholder="PEMERINTAH KABUPATEN / KOTA"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Dinas Kesehatan
+                </label>
+                <input
+                  type="text"
+                  value={tempKopConfig.dinasKesehatan || ""}
+                  onChange={(e) => setTempKopConfig({ ...tempKopConfig, dinasKesehatan: e.target.value })}
+                  placeholder="DINAS KESEHATAN KABUPATEN / KOTA"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Nama Satuan Kerja / Puskesmas
+                </label>
+                <input
+                  type="text"
+                  value={tempKopConfig.namaPuskesmas || ""}
+                  onChange={(e) => setTempKopConfig({ ...tempKopConfig, namaPuskesmas: e.target.value })}
+                  placeholder="UPTD PUSKESMAS KECAMATAN"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500 font-bold text-emerald-800"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Kota / Wilayah Dokumen
+                </label>
+                <input
+                  type="text"
+                  value={tempKopConfig.kotaDokumen || ""}
+                  onChange={(e) => setTempKopConfig({ ...tempKopConfig, kotaDokumen: e.target.value })}
+                  placeholder="Contoh: Cibinong / Bogor"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Alamat & Kontak Puskesmas (Baris Sub-Header)
+                </label>
+                <input
+                  type="text"
+                  value={tempKopConfig.alamatKontak || ""}
+                  onChange={(e) => setTempKopConfig({ ...tempKopConfig, alamatKontak: e.target.value })}
+                  placeholder="Jl. Raya Kesehatan No. 01, Telp. (021) 1234567 | Pos-el: puskesmas@dinkes.go.id"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Section 2: Pimpinan (Mengetahui) */}
+          <div className="space-y-3">
+            <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-200 pb-1.5">
+              <User className="w-4 h-4 text-emerald-600" />
+              <span>Pejabat Menyetujui (Pimpinan Puskesmas)</span>
+            </h4>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Jabatan Pimpinan
+                </label>
+                <input
+                  type="text"
+                  value={tempKopConfig.pimpinanJabatan || ""}
+                  onChange={(e) => setTempKopConfig({ ...tempKopConfig, pimpinanJabatan: e.target.value })}
+                  placeholder="Kepala UPTD Puskesmas"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Nama Lengkap & Gelar Pimpinan
+                </label>
+                <input
+                  type="text"
+                  value={tempKopConfig.pimpinanNama || ""}
+                  onChange={(e) => setTempKopConfig({ ...tempKopConfig, pimpinanNama: e.target.value })}
+                  placeholder="dr. H. Ahmad Fauzi, M.Kes"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  NIP Pimpinan
+                </label>
+                <input
+                  type="text"
+                  value={tempKopConfig.pimpinanNip || ""}
+                  onChange={(e) => setTempKopConfig({ ...tempKopConfig, pimpinanNip: e.target.value })}
+                  placeholder="19780512 200501 1 008"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Section 3: Pelapor (Penanggung Jawab MFK & K3) */}
+          <div className="space-y-3">
+            <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5 border-b border-slate-200 pb-1.5">
+              <ClipboardCheck className="w-4 h-4 text-emerald-600" />
+              <span>Pejabat Pelapor (Penanggung Jawab MFK / Sanitasi)</span>
+            </h4>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Jabatan Pelapor
+                </label>
+                <input
+                  type="text"
+                  value={tempKopConfig.pelaporJabatan || ""}
+                  onChange={(e) => setTempKopConfig({ ...tempKopConfig, pelaporJabatan: e.target.value })}
+                  placeholder="Penanggung Jawab MFK & K3"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Nama Pejabat / Pelapor
+                </label>
+                <input
+                  type="text"
+                  value={tempKopConfig.pelaporNama || ""}
+                  onChange={(e) => setTempKopConfig({ ...tempKopConfig, pelaporNama: e.target.value })}
+                  placeholder="Administrator MFK / Tim Sanitasi"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Unit Kerja / Keterangan
+                </label>
+                <input
+                  type="text"
+                  value={tempKopConfig.pelaporKeterangan || ""}
+                  onChange={(e) => setTempKopConfig({ ...tempKopConfig, pelaporKeterangan: e.target.value })}
+                  placeholder="Koordinator Fasilitas & Keselamatan"
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons in Modal */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-200">
+            <button
+              type="button"
+              onClick={handleResetKop}
+              className="inline-flex items-center gap-1.5 text-xs text-rose-600 hover:text-rose-700 font-semibold cursor-pointer"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Reset ke Default</span>
+            </button>
+
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={() => setIsKopModalOpen(false)}
+                className="flex-1 sm:flex-none px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs transition cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs shadow-md shadow-emerald-600/20 transition cursor-pointer"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>Simpan Pengaturan</span>
+              </button>
+            </div>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

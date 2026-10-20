@@ -46,5 +46,9 @@ export const API_ENDPOINTS = {
     UPDATE: (id) => `/users/${id}`,
     DELETE: (id) => `/users/${id}`,
   },
+  SETTINGS: {
+    GET: "/settings",
+    UPDATE: "/settings",
+  },
 };
 

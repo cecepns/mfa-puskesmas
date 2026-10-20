@@ -11,6 +11,7 @@ import InsidenRisiko from "./pages/InsidenRisiko";
 import LaporanPeriodik from "./pages/LaporanPeriodik";
 import ManajemenUser from "./pages/ManajemenUser";
 import MasterRuangan from "./pages/MasterRuangan";
+import Pengaturan from "./pages/Pengaturan";
 import Login from "./pages/Login";
 
 function ProtectedLayout() {
@@ -36,9 +37,9 @@ function ProtectedLayout() {
             </button>
             <div className="flex flex-col">
               <span className="text-sm font-bold text-slate-800 tracking-tight">
-                Sistem Informasi Manajemen Fasilitas & Keselamatan (SIM-MFK)
+                SIKELA (Sistem Informasi Kelola Fasilitas dan Keselamatan)
               </span>
-              <span className="text-xs text-slate-500">UPTD Puskesmas • Akreditasi Standar MFK 1-10</span>
+              <span className="text-xs text-slate-500">UPTD Puskesmas Muara Kulam • Akreditasi Standar MFK 1-10</span>
             </div>
           </div>
 
@@ -85,6 +86,7 @@ export default function App() {
             <Route path="/insiden-risiko" element={<InsidenRisiko />} />
             <Route path="/laporan-periodik" element={<LaporanPeriodik />} />
             <Route path="/users" element={<ManajemenUser />} />
+            <Route path="/pengaturan" element={<Pengaturan />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

@@ -31,6 +31,7 @@ const CATEGORY_OPTIONS = [
 
 export default function MasterRuangan() {
   const [rooms, setRooms] = useState([]);
+  const [users, setUsers] = useState([]);
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
   const [selectedCategory, setSelectedCategory] = useState("Semua");
@@ -49,7 +50,9 @@ export default function MasterRuangan() {
     name: "",
     category: "Klaster_Ruangan",
     pic_name: "",
+    pic_user_id: "",
     condition_status: "Baik",
+    damage_description: "",
   };
   const [form, setForm] = useState(initialForm);
 
@@ -87,8 +90,18 @@ export default function MasterRuangan() {
     }
   };
 
+  const fetchUsers = async () => {
+    try {
+      const res = await request.get(API_ENDPOINTS.USERS.LIST, { all: "true", limit: 100 });
+      setUsers(res.data || []);
+    } catch {
+      // fallback
+    }
+  };
+
   useEffect(() => {
     fetchStats();
+    fetchUsers();
   }, []);
 
   useEffect(() => {
@@ -107,7 +120,9 @@ export default function MasterRuangan() {
       name: room.name,
       category: room.category,
       pic_name: room.pic_name || "",
+      pic_user_id: room.pic_user_id || "",
       condition_status: room.condition_status || "Baik",
+      damage_description: room.damage_description || "",
     });
     setIsModalOpen(true);
   };
@@ -364,7 +379,16 @@ export default function MasterRuangan() {
                     </td>
                     <td className="px-5 py-4">
                       <div className="font-semibold text-slate-900">{room.name}</div>
-                      <div className="flex items-center gap-2 mt-1 text-[11px] text-slate-400">
+                      {room.damage_description && (
+                        <div className="mt-1.5 flex items-start gap-1.5 p-2 rounded-lg bg-amber-50/90 border border-amber-200 text-xs text-amber-900 max-w-md">
+                          <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-semibold text-amber-800">Uraian Kerusakan: </span>
+                            <span className="text-slate-700">{room.damage_description}</span>
+                          </div>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 mt-1.5 text-[11px] text-slate-400">
                         <span className="flex items-center gap-1">
                           <Package className="w-3 h-3 text-slate-400" />
                           {room.total_inventaris || 0} Aset
@@ -466,16 +490,43 @@ export default function MasterRuangan() {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-              Penanggung Jawab (PJ Ruangan)
-            </label>
-            <input
-              type="text"
-              placeholder="Contoh: Bidan Rina / Petugas Kebersihan B"
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                Penanggung Jawab (PJ Ruangan)
+              </label>
+              <span className="text-[11px] text-emerald-700 font-medium">
+                Pilih dari Pengguna (Users)
+              </span>
+            </div>
+            <select
               value={form.pic_name}
-              onChange={(e) => setForm({ ...form, pic_name: e.target.value })}
-              className="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
-            />
+              onChange={(e) => {
+                const selectedName = e.target.value;
+                const foundUser = users.find((u) => u.name === selectedName);
+                setForm({
+                  ...form,
+                  pic_name: selectedName,
+                  pic_user_id: foundUser ? foundUser.id : "",
+                });
+              }}
+              className="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white cursor-pointer"
+            >
+              <option value="">-- Pilih Pengguna sebagai PJ Ruangan --</option>
+              {users.map((u) => (
+                <option key={u.id} value={u.name}>
+                  {u.name} {u.work_unit ? `— ${u.work_unit}` : ""} ({u.role})
+                </option>
+              ))}
+              {/* Jika data ruangan lama memiliki nama yang belum ada di daftar users, tetap sediakan opsinya agar tidak terhapus */}
+              {form.pic_name && !users.some((u) => u.name === form.pic_name) && (
+                <option value={form.pic_name}>
+                  {form.pic_name} (Data Tersimpan)
+                </option>
+              )}
+            </select>
+            <p className="text-[11px] text-slate-400 mt-1">
+              Data Penanggung Jawab otomatis diambil dari daftar akun pengguna (users) Puskesmas.
+            </p>
           </div>
 
           <div>
@@ -492,6 +543,25 @@ export default function MasterRuangan() {
               <option value="Rusak Berat">Rusak Berat</option>
             </select>
           </div>
+
+          {form.condition_status !== "Baik" && (
+            <div className="p-3.5 bg-amber-50/80 border border-amber-200 rounded-xl space-y-1.5 animate-fadeIn">
+              <label className="block text-xs font-semibold text-amber-900 uppercase tracking-wider">
+                Uraian / Rincian Kerusakan Ruangan *
+              </label>
+              <p className="text-[11px] text-amber-700">
+                Jelaskan apa saja yang perlu diperbaiki (contoh: plafon bocor, lampu mati, kran wastafel bocor).
+              </p>
+              <textarea
+                rows="3"
+                required={form.condition_status !== "Baik"}
+                placeholder="Rincian kerusakan ruangan yang perlu perbaikan..."
+                value={form.damage_description}
+                onChange={(e) => setForm({ ...form, damage_description: e.target.value })}
+                className="w-full border border-amber-300 rounded-lg p-2.5 text-sm bg-white focus:ring-2 focus:ring-amber-500 focus:outline-none"
+              />
+            </div>
+          )}
 
           <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
             <button
