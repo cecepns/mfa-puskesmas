@@ -632,7 +632,7 @@ export default function LaporanPeriodik() {
           }`}
         >
           <Package className="w-4 h-4" />
-          <span>Rekap Inventarisasi ({reportData?.inventories?.length || 0})</span>
+          <span>Rekap Aset & Sarpras ({reportData?.inventories?.length || 0})</span>
         </button>
 
         <button
