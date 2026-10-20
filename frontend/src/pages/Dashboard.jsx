@@ -41,39 +41,44 @@ export default function Dashboard() {
 
   const statCards = [
     {
-      title: "Penyelesaian Laporan",
-      value: `${data.laporanSelesai} Selesai / ${data.laporanTerlambat} Terlambat`,
+      title: "Laporan Selesai",
+      value: data.laporanSelesai ?? 0,
+      sub: `${data.laporanTerlambat || 0} Terlambat`,
       icon: CheckCircle2,
-      color: "bg-emerald-50 text-emerald-800 border-emerald-200",
-      iconBg: "bg-emerald-100 text-emerald-700",
+      iconColor: "text-emerald-600 bg-emerald-50",
+      subColor: "text-emerald-700",
     },
     {
       title: "Cakupan Inspeksi",
-      value: `${data.persentaseInspeksi}% Ruangan Diperiksa`,
+      value: `${data.persentaseInspeksi ?? 0}%`,
+      sub: "Ruangan Diperiksa",
       icon: Percent,
-      color: "bg-blue-50 text-blue-800 border-blue-200",
-      iconBg: "bg-blue-100 text-blue-700",
+      iconColor: "text-blue-600 bg-blue-50",
+      subColor: "text-blue-700",
     },
     {
-      title: "Kerusakan Kritis (Segera)",
-      value: `${data.kerusakanSegera} Kasus Urgen`,
+      title: "Kerusakan Kritis",
+      value: data.kerusakanSegera ?? 0,
+      sub: "Urgensi Segera",
       icon: Wrench,
-      color: "bg-amber-50 text-amber-800 border-amber-200",
-      iconBg: "bg-amber-100 text-amber-700",
+      iconColor: "text-amber-600 bg-amber-50",
+      subColor: "text-amber-700",
     },
     {
-      title: "Alat Medis Terkalibrasi",
-      value: `${data.jumlahKalibrasi} Unit Alkes`,
+      title: "Alat Terkalibrasi",
+      value: data.jumlahKalibrasi ?? 0,
+      sub: "Unit Alkes Laik",
       icon: Activity,
-      color: "bg-teal-50 text-teal-800 border-teal-200",
-      iconBg: "bg-teal-100 text-teal-700",
+      iconColor: "text-teal-600 bg-teal-50",
+      subColor: "text-teal-700",
     },
     {
-      title: "Rekap Insiden Keselamatan",
-      value: `${data.totalInsiden} Insiden (${data.insidenSelesai} Selesai)`,
+      title: "Insiden K3",
+      value: data.totalInsiden ?? 0,
+      sub: `${data.insidenSelesai || 0} Kasus Ditangani`,
       icon: ShieldAlert,
-      color: "bg-rose-50 text-rose-800 border-rose-200",
-      iconBg: "bg-rose-100 text-rose-700",
+      iconColor: "text-rose-600 bg-rose-50",
+      subColor: "text-rose-700",
     },
   ];
 
@@ -94,21 +99,29 @@ export default function Dashboard() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
         {statCards.map((card, i) => {
           const Icon = card.icon;
           return (
             <div
               key={i}
-              className={`p-4 rounded-2xl border ${card.color} flex flex-col justify-between shadow-xs transition hover:shadow-sm`}
+              className={`p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs flex flex-col justify-between h-full transition hover:shadow-sm ${
+                i === 4 ? "col-span-2 sm:col-span-1 lg:col-span-1" : ""
+              }`}
             >
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-semibold uppercase tracking-wider opacity-80">{card.title}</span>
-                <div className={`p-2 rounded-xl ${card.iconBg}`}>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
+                  {card.title}
+                </span>
+                <div className={`w-7 h-7 rounded-xl ${card.iconColor} flex items-center justify-center shrink-0`}>
                   <Icon className="w-4 h-4" />
                 </div>
               </div>
-              <p className="text-lg font-bold text-slate-900">{card.value}</p>
+              <p className="text-2xl font-black text-slate-900 tracking-tight my-1.5">{card.value}</p>
+              <p className={`text-xs font-medium flex items-center gap-1 truncate ${card.subColor}`}>
+                <Icon className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">{card.sub}</span>
+              </p>
             </div>
           );
         })}

@@ -78,11 +78,6 @@ export default function Login() {
     }
   };
 
-  const handleQuickLogin = (u, p) => {
-    setUsername(u);
-    setPassword(p);
-  };
-
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-10 sm:px-6 lg:px-8 relative">
       <div className="sm:mx-auto sm:w-full sm:max-w-md px-4">
@@ -180,51 +175,6 @@ export default function Login() {
             </button>
           </form>
 
-          {/* Quick Demo Access */}
-          <div className="mt-6 pt-5 border-t border-slate-100">
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                Pilihan Cepat Demo Akun
-              </span>
-              <span className="text-[11px] text-slate-400">Klik untuk isi form</span>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <button
-                type="button"
-                onClick={() => handleQuickLogin("admin", "admin123")}
-                className="p-2.5 text-left border border-slate-200 rounded-xl hover:bg-emerald-50 hover:border-emerald-300 transition group cursor-pointer"
-              >
-                <div className="font-semibold text-slate-800 group-hover:text-emerald-700">Admin MFK</div>
-                <div className="text-[10px] text-slate-400 font-mono">admin / admin123</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickLogin("pimpinan", "pimpinan123")}
-                className="p-2.5 text-left border border-slate-200 rounded-xl hover:bg-blue-50 hover:border-blue-300 transition group cursor-pointer"
-              >
-                <div className="font-semibold text-slate-800 group-hover:text-blue-700">Kepala Puskesmas</div>
-                <div className="text-[10px] text-slate-400 font-mono">pimpinan / pimpinan123</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickLogin("petugas1", "petugas123")}
-                className="p-2.5 text-left border border-slate-200 rounded-xl hover:bg-teal-50 hover:border-teal-300 transition group cursor-pointer"
-              >
-                <div className="font-semibold text-slate-800 group-hover:text-teal-700">Petugas Sanitasi</div>
-                <div className="text-[10px] text-slate-400 font-mono">petugas1 / petugas123</div>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickLogin("bidan_rina", "bidan123")}
-                className="p-2.5 text-left border border-slate-200 rounded-xl hover:bg-purple-50 hover:border-purple-300 transition group cursor-pointer"
-              >
-                <div className="font-semibold text-slate-800 group-hover:text-purple-700">PJ Ruangan (KIA)</div>
-                <div className="text-[10px] text-slate-400 font-mono">bidan_rina / bidan123</div>
-              </button>
-            </div>
-          </div>
-
           {/* PWA Install Banner */}
           <div className="mt-6 pt-5 border-t border-slate-100">
             {isStandalone ? (
@@ -236,8 +186,8 @@ export default function Login() {
               <div className="bg-gradient-to-r from-emerald-50/80 via-teal-50/60 to-emerald-50/80 border border-emerald-200/80 rounded-2xl p-3.5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-2.5">
-                    <div className="p-2 bg-emerald-600 text-white rounded-xl shadow-xs">
-                      <Smartphone className="w-4 h-4" />
+                    <div className="w-10 h-10 p-1 bg-white border border-slate-200/90 rounded-xl shadow-xs shrink-0 flex items-center justify-center">
+                      <img src={logoImg} alt="SIKELA Logo" className="w-full h-full object-contain" />
                     </div>
                     <div>
                       <div className="text-xs font-bold text-slate-900">
@@ -291,8 +241,8 @@ export default function Login() {
             </button>
 
             <div className="flex items-center gap-3 mb-4">
-              <div className="p-2.5 bg-emerald-100 rounded-2xl text-emerald-700">
-                <Smartphone className="w-5 h-5" />
+              <div className="w-11 h-11 p-1 bg-white border border-slate-200/90 rounded-2xl shadow-xs shrink-0 flex items-center justify-center">
+                <img src={logoImg} alt="SIKELA Logo" className="w-full h-full object-contain" />
               </div>
               <div>
                 <h3 className="font-bold text-slate-900 text-sm">Cara Pasang SIKELA di HP</h3>
