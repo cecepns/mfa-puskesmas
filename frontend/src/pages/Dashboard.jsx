@@ -87,7 +87,7 @@ export default function Dashboard() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Dashboard Monitoring SIKELAK</h2>
+        <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Dashboard Monitoring SIKELA</h2>
         <p className="text-sm text-slate-500 mt-1">
           Ringkasan kondisi fasilitas per ruangan, kepatuhan inspeksi, kalibrasi alkes, dan manajemen risiko Puskesmas.
         </p>

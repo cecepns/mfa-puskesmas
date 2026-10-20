@@ -216,12 +216,12 @@ export default function MasterRuangan() {
             </span>
           </div>
           <p className="text-sm text-slate-500 mt-1">
-            Kelola data klaster pelayanan, toilet sanitasi, area umum, penanggung jawab (PJ), serta laporan kondisi fisik & rincian kerusakan ruangan.
+            Kelola data ruangan, penanggung jawab (PJ), dan pemantauan kondisi fasilitas.
           </p>
         </div>
         <button
           onClick={handleOpenCreate}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm rounded-xl shadow-md shadow-emerald-600/20 transition cursor-pointer"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm rounded-xl shadow-md shadow-emerald-600/20 transition cursor-pointer shrink-0"
         >
           <Plus className="w-4 h-4" />
           <span>Tambah Ruangan Baru</span>
@@ -229,77 +229,77 @@ export default function MasterRuangan() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3.5">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <div
           onClick={() => { setSelectedCategory("Semua"); setSelectedCondition("Semua"); setPagination((p) => ({ ...p, page: 1 })); }}
-          className={`p-4 rounded-2xl border transition cursor-pointer ${
+          className={`p-3.5 sm:p-4 rounded-2xl border transition cursor-pointer flex flex-col justify-between h-full ${
             selectedCategory === "Semua" && selectedCondition === "Semua"
               ? "bg-slate-900 text-white border-slate-900 shadow-md"
               : "bg-white border-slate-200 hover:border-slate-300"
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className={`text-xs font-semibold uppercase tracking-wider ${selectedCategory === "Semua" && selectedCondition === "Semua" ? "text-slate-300" : "text-slate-500"}`}>
+            <span className={`text-[11px] font-bold uppercase tracking-wider truncate ${selectedCategory === "Semua" && selectedCondition === "Semua" ? "text-slate-300" : "text-slate-500"}`}>
               Total Ruangan
             </span>
-            <Building2 className={`w-4 h-4 ${selectedCategory === "Semua" && selectedCondition === "Semua" ? "text-emerald-400" : "text-slate-400"}`} />
+            <Building2 className={`w-4 h-4 shrink-0 ${selectedCategory === "Semua" && selectedCondition === "Semua" ? "text-emerald-400" : "text-slate-400"}`} />
           </div>
-          <p className="text-2xl font-bold mt-2">{stats.total}</p>
-          <p className={`text-[11px] mt-0.5 ${selectedCategory === "Semua" && selectedCondition === "Semua" ? "text-slate-400" : "text-slate-400"}`}>
-            Seluruh area tercatat
+          <p className="text-2xl font-black my-1">{stats.total}</p>
+          <p className={`text-[11px] truncate ${selectedCategory === "Semua" && selectedCondition === "Semua" ? "text-slate-400" : "text-slate-400"}`}>
+            Seluruh area
           </p>
         </div>
 
         <div
           onClick={() => { setSelectedCategory("Klaster_Ruangan"); setSelectedCondition("Semua"); setPagination((p) => ({ ...p, page: 1 })); }}
-          className={`p-4 rounded-2xl border transition cursor-pointer ${
+          className={`p-3.5 sm:p-4 rounded-2xl border transition cursor-pointer flex flex-col justify-between h-full ${
             selectedCategory === "Klaster_Ruangan" ? "bg-blue-600 text-white border-blue-600 shadow-md" : "bg-white border-slate-200 hover:border-slate-300"
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className={`text-xs font-semibold uppercase tracking-wider ${selectedCategory === "Klaster_Ruangan" ? "text-blue-100" : "text-slate-500"}`}>
+            <span className={`text-[11px] font-bold uppercase tracking-wider truncate ${selectedCategory === "Klaster_Ruangan" ? "text-blue-100" : "text-slate-500"}`}>
               Klaster Pelayanan
             </span>
-            <Layers className={`w-4 h-4 ${selectedCategory === "Klaster_Ruangan" ? "text-white" : "text-blue-500"}`} />
+            <Layers className={`w-4 h-4 shrink-0 ${selectedCategory === "Klaster_Ruangan" ? "text-white" : "text-blue-500"}`} />
           </div>
-          <p className="text-2xl font-bold mt-2">{stats.klaster}</p>
-          <p className={`text-[11px] mt-0.5 ${selectedCategory === "Klaster_Ruangan" ? "text-blue-100" : "text-slate-400"}`}>
-            UGD, Poli, KIA, Ranap, dll
+          <p className="text-2xl font-black my-1">{stats.klaster}</p>
+          <p className={`text-[11px] truncate ${selectedCategory === "Klaster_Ruangan" ? "text-blue-100" : "text-slate-400"}`}>
+            UGD, Poli, KIA, Ranap
           </p>
         </div>
 
         <div
           onClick={() => { setSelectedCategory("Sanitasi_Toilet"); setSelectedCondition("Semua"); setPagination((p) => ({ ...p, page: 1 })); }}
-          className={`p-4 rounded-2xl border transition cursor-pointer ${
+          className={`p-3.5 sm:p-4 rounded-2xl border transition cursor-pointer flex flex-col justify-between h-full ${
             selectedCategory === "Sanitasi_Toilet" ? "bg-teal-600 text-white border-teal-600 shadow-md" : "bg-white border-slate-200 hover:border-slate-300"
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className={`text-xs font-semibold uppercase tracking-wider ${selectedCategory === "Sanitasi_Toilet" ? "text-teal-100" : "text-slate-500"}`}>
+            <span className={`text-[11px] font-bold uppercase tracking-wider truncate ${selectedCategory === "Sanitasi_Toilet" ? "text-teal-100" : "text-slate-500"}`}>
               Sanitasi & Toilet
             </span>
-            <Sparkles className={`w-4 h-4 ${selectedCategory === "Sanitasi_Toilet" ? "text-white" : "text-teal-500"}`} />
+            <Sparkles className={`w-4 h-4 shrink-0 ${selectedCategory === "Sanitasi_Toilet" ? "text-white" : "text-teal-500"}`} />
           </div>
-          <p className="text-2xl font-bold mt-2">{stats.sanitasi}</p>
-          <p className={`text-[11px] mt-0.5 ${selectedCategory === "Sanitasi_Toilet" ? "text-teal-100" : "text-slate-400"}`}>
-            Toilet LT. I, II, Ranap, dll
+          <p className="text-2xl font-black my-1">{stats.sanitasi}</p>
+          <p className={`text-[11px] truncate ${selectedCategory === "Sanitasi_Toilet" ? "text-teal-100" : "text-slate-400"}`}>
+            Toilet & area sanitasi
           </p>
         </div>
 
         <div
           onClick={() => { setSelectedCategory("Area_Umum"); setSelectedCondition("Semua"); setPagination((p) => ({ ...p, page: 1 })); }}
-          className={`p-4 rounded-2xl border transition cursor-pointer ${
+          className={`p-3.5 sm:p-4 rounded-2xl border transition cursor-pointer flex flex-col justify-between h-full ${
             selectedCategory === "Area_Umum" ? "bg-amber-600 text-white border-amber-600 shadow-md" : "bg-white border-slate-200 hover:border-slate-300"
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className={`text-xs font-semibold uppercase tracking-wider ${selectedCategory === "Area_Umum" ? "text-amber-100" : "text-slate-500"}`}>
+            <span className={`text-[11px] font-bold uppercase tracking-wider truncate ${selectedCategory === "Area_Umum" ? "text-amber-100" : "text-slate-500"}`}>
               Area Umum
             </span>
-            <Building2 className={`w-4 h-4 ${selectedCategory === "Area_Umum" ? "text-white" : "text-amber-500"}`} />
+            <Building2 className={`w-4 h-4 shrink-0 ${selectedCategory === "Area_Umum" ? "text-white" : "text-amber-500"}`} />
           </div>
-          <p className="text-2xl font-bold mt-2">{stats.umum}</p>
-          <p className={`text-[11px] mt-0.5 ${selectedCategory === "Area_Umum" ? "text-amber-100" : "text-slate-400"}`}>
+          <p className="text-2xl font-black my-1">{stats.umum}</p>
+          <p className={`text-[11px] truncate ${selectedCategory === "Area_Umum" ? "text-amber-100" : "text-slate-400"}`}>
             Parkir, koridor, TPS B3
           </p>
         </div>
@@ -311,21 +311,21 @@ export default function MasterRuangan() {
             setSelectedCategory("Semua");
             setPagination((p) => ({ ...p, page: 1 }));
           }}
-          className={`p-4 rounded-2xl border transition cursor-pointer col-span-2 md:col-span-1 ${
+          className={`p-3.5 sm:p-4 rounded-2xl border transition cursor-pointer flex flex-col justify-between h-full col-span-2 sm:col-span-1 lg:col-span-1 ${
             selectedCondition === "Perlu Perbaikan"
               ? "bg-rose-600 text-white border-rose-600 shadow-md"
-              : "bg-amber-50/70 border-amber-200 hover:border-amber-300"
+              : "bg-white border-slate-200 hover:border-amber-300"
           }`}
         >
           <div className="flex items-center justify-between">
-            <span className={`text-xs font-bold uppercase tracking-wider ${selectedCondition === "Perlu Perbaikan" ? "text-rose-100" : "text-amber-800"}`}>
+            <span className={`text-[11px] font-bold uppercase tracking-wider truncate ${selectedCondition === "Perlu Perbaikan" ? "text-rose-100" : "text-amber-800"}`}>
               Perlu Perbaikan
             </span>
-            <Wrench className={`w-4 h-4 ${selectedCondition === "Perlu Perbaikan" ? "text-white" : "text-amber-600"}`} />
+            <Wrench className={`w-4 h-4 shrink-0 ${selectedCondition === "Perlu Perbaikan" ? "text-white" : "text-amber-600"}`} />
           </div>
-          <p className="text-2xl font-bold mt-2">{stats.perbaikan}</p>
-          <p className={`text-[11px] mt-0.5 ${selectedCondition === "Perlu Perbaikan" ? "text-rose-100" : "text-amber-700"}`}>
-            Klik filter ruangan rusak
+          <p className="text-2xl font-black my-1">{stats.perbaikan}</p>
+          <p className={`text-[11px] truncate ${selectedCondition === "Perlu Perbaikan" ? "text-rose-100" : "text-amber-700"}`}>
+            Kondisi tidak optimal
           </p>
         </div>
       </div>
@@ -333,15 +333,15 @@ export default function MasterRuangan() {
       {/* Table Container */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         {/* Search & Filter Bar */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between bg-slate-50/50">
+        <div className="p-3.5 sm:p-4 border-b border-slate-100 flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between bg-slate-50/50">
           <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 absolute left-3.5 top-3 text-slate-400" />
+            <Search className="w-4 h-4 absolute left-3.5 top-2.5 text-slate-400" />
             <input
               type="text"
-              placeholder="Cari nama ruangan, penanggung jawab, atau kerusakan..."
+              placeholder="Cari nama ruangan, PJ, atau kerusakan..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="w-full pl-10 pr-4 py-1.5 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
             />
           </div>
 
@@ -353,7 +353,7 @@ export default function MasterRuangan() {
                 setSelectedCategory(e.target.value);
                 setPagination((p) => ({ ...p, page: 1 }));
               }}
-              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             >
               <option value="Semua">Semua Kategori Area</option>
               {CATEGORY_OPTIONS.map((c) => (
@@ -368,7 +368,7 @@ export default function MasterRuangan() {
                 setSelectedCondition(e.target.value);
                 setPagination((p) => ({ ...p, page: 1 }));
               }}
-              className="px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             >
               <option value="Semua">Semua Status Kondisi</option>
               <option value="Baik">Kondisi: Baik</option>
@@ -399,7 +399,7 @@ export default function MasterRuangan() {
                 <th className="px-5 py-3.5 w-2/5">
                   <div className="flex items-center gap-1.5">
                     <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Nama Ruangan / Klaster & Uraian Kerusakan</span>
+                    <span>Ruangan & Kondisi Fisik</span>
                   </div>
                 </th>
                 <th className="px-5 py-3.5 w-1/5">Kategori Area</th>
@@ -429,48 +429,42 @@ export default function MasterRuangan() {
               ) : (
                 rooms.map((room, idx) => (
                   <tr key={room.id} className="hover:bg-slate-50/80 transition-colors">
-                    <td className="px-5 py-4 text-center text-xs text-slate-400 font-medium">
+                    <td className="px-5 py-3.5 text-center text-xs text-slate-400 font-medium">
                       {(pagination.page - 1) * pagination.limit + idx + 1}
                     </td>
-                    <td className="px-5 py-4">
-                      <div className="font-semibold text-slate-900 text-base">{room.name}</div>
+                    <td className="px-5 py-3.5">
+                      <div className="font-semibold text-slate-900 text-sm sm:text-base">{room.name}</div>
 
                       {/* Uraian Kerusakan Display */}
                       {room.damage_description ? (
-                        <div className="mt-2 flex items-start gap-2 p-2.5 rounded-xl bg-amber-50/90 border border-amber-300 text-xs text-amber-950 max-w-lg shadow-2xs">
-                          <Wrench className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
-                          <div className="flex-1">
-                            <span className="font-bold text-amber-900 block mb-0.5">
-                              Uraian Kerusakan Ruangan:
-                            </span>
-                            <span className="text-slate-800 leading-relaxed font-normal">
-                              {room.damage_description}
-                            </span>
+                        <div className="mt-1.5 flex items-start gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-50/90 border border-amber-200 text-xs text-amber-950 max-w-md shadow-2xs">
+                          <Wrench className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
+                          <div className="flex-1 min-w-0">
+                            <span className="font-bold text-amber-900 mr-1">Kerusakan:</span>
+                            <span className="text-slate-800 leading-snug">{room.damage_description}</span>
                           </div>
                         </div>
                       ) : (
                         (room.condition_status === "Perlu Perbaikan" || room.condition_status === "Rusak Berat") && (
-                          <div className="mt-2 flex items-center justify-between gap-2 p-2 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-800 max-w-lg">
-                            <div className="flex items-center gap-1.5">
-                              <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
-                              <span>Status <b>{room.condition_status}</b> belum ada rincian kerusakan.</span>
-                            </div>
+                          <div className="mt-1.5 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-[11px] text-rose-800">
+                            <AlertTriangle className="w-3 h-3 text-rose-600 shrink-0" />
+                            <span>Belum ada uraian kerusakan</span>
                             <button
                               type="button"
                               onClick={() => handleOpenEdit(room)}
-                              className="px-2 py-1 bg-white hover:bg-rose-100 border border-rose-300 rounded-lg text-[11px] font-semibold text-rose-700 transition cursor-pointer"
+                              className="ml-1 font-semibold text-rose-800 underline hover:text-rose-900 cursor-pointer"
                             >
-                              + Isi Uraian
+                              Isi
                             </button>
                           </div>
                         )
                       )}
 
                       {/* Meta counters */}
-                      <div className="flex items-center gap-2 mt-2 text-[11px] text-slate-400">
+                      <div className="flex items-center gap-2 mt-1.5 text-[11px] text-slate-400">
                         <span className="flex items-center gap-1">
                           <Package className="w-3 h-3 text-slate-400" />
-                          {room.total_inventaris || 0} Aset Inventaris
+                          {room.total_inventaris || 0} Aset
                         </span>
                         <span>•</span>
                         <span className="flex items-center gap-1">
@@ -482,7 +476,7 @@ export default function MasterRuangan() {
                             <span>•</span>
                             <span className="flex items-center gap-1 text-amber-600 font-medium">
                               <Wrench className="w-3 h-3 text-amber-500" />
-                              {room.total_kerusakan} Laporan Utilitas
+                              {room.total_kerusakan} Kerusakan Utilitas
                             </span>
                           </>
                         )}

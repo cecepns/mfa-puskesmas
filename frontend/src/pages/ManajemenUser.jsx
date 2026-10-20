@@ -494,7 +494,7 @@ export default function ManajemenUser() {
               className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
             />
             <label htmlFor="is_active" className="text-sm font-medium text-slate-700 cursor-pointer">
-              Akun Aktif (Dapat masuk ke dalam aplikasi SIKELAK)
+              Akun Aktif (Dapat masuk ke dalam aplikasi SIKELA)
             </label>
           </div>
 

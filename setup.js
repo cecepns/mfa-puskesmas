@@ -596,7 +596,7 @@ export default defineConfig({
     VitePWA({
       registerType: "autoUpdate",
       manifest: {
-        name: "SIKELAK Puskesmas",
+        name: "SIKELA Puskesmas",
         short_name: "MFK Puskesmas",
         description: "Aplikasi Manajemen Fasilitas & Keselamatan Puskesmas",
         theme_color: "#047857",
@@ -632,7 +632,7 @@ export default {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SIKELAK Puskesmas</title>
+    <title>SIKELA Puskesmas</title>
   </head>
   <body class="bg-slate-50 text-slate-800">
     <div id="root"></div>
@@ -842,7 +842,7 @@ export default function Sidebar({ isOpen, setIsOpen }) {
           <div className="flex items-center gap-3">
             <Building2 className="w-7 h-7 text-emerald-400" />
             <div>
-              <h1 className="font-bold text-base">SIKELAK</h1>
+              <h1 className="font-bold text-base">SIKELA</h1>
               <p className="text-xs text-emerald-300">Puskesmas Digital</p>
             </div>
           </div>

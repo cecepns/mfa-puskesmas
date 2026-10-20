@@ -351,10 +351,10 @@ export default function LaporanPeriodik() {
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap shrink-0">
           <button
             onClick={fetchReport}
-            className="p-2.5 text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition cursor-pointer"
+            className="p-2.5 text-slate-600 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl transition cursor-pointer shrink-0"
             title="Muat Ulang Data"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
@@ -367,25 +367,25 @@ export default function LaporanPeriodik() {
                   setTempKopConfig(kopConfig);
                   setIsKopModalOpen(true);
                 }}
-                className="inline-flex items-center gap-2 px-3.5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-sm rounded-xl transition cursor-pointer shadow-xs"
+                className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs sm:text-sm rounded-xl transition cursor-pointer shadow-xs shrink-0"
                 title="Atur KOP Surat dan Pejabat Penandatangan"
               >
-                <Settings className="w-4 h-4 text-emerald-600" />
-                <span>Atur KOP & Pimpinan</span>
+                <Settings className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Atur KOP</span>
               </button>
               <button
                 onClick={downloadCSV}
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm rounded-xl shadow-md shadow-emerald-600/20 transition cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs sm:text-sm rounded-xl shadow-md shadow-emerald-600/20 transition cursor-pointer shrink-0"
               >
-                <Download className="w-4 h-4" />
-                <span>Export CSV (Excel)</span>
+                <Download className="w-4 h-4 shrink-0" />
+                <span>Export CSV</span>
               </button>
               <button
                 onClick={() => setIsPdfModalOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-medium text-sm rounded-xl shadow-md transition cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs sm:text-sm rounded-xl shadow-md transition cursor-pointer shrink-0"
               >
-                <FileText className="w-4 h-4 text-emerald-400" />
-                <span>Download PDF Laporan</span>
+                <FileText className="w-4 h-4 text-emerald-400 shrink-0" />
+                <span>Download PDF</span>
               </button>
             </>
           ) : (
@@ -401,46 +401,44 @@ export default function LaporanPeriodik() {
       </div>
 
       {/* Filter Bar */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
+      <div className="bg-white rounded-2xl border border-slate-200 px-4 py-3 sm:px-5 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 print:hidden">
         <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl">
-            <Filter className="w-5 h-5" />
+          <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl">
+            <Filter className="w-4 h-4" />
           </div>
-          <div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Filter Periode</span>
-            <div className="flex items-center gap-2 mt-1">
-              <button
-                onClick={() => setPeriodType("monthly")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                  periodType === "monthly"
-                    ? "bg-emerald-600 text-white shadow-xs"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-              >
-                Bulanan
-              </button>
-              <button
-                onClick={() => setPeriodType("yearly")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                  periodType === "yearly"
-                    ? "bg-emerald-600 text-white shadow-xs"
-                    : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                }`}
-              >
-                Tahunan
-              </button>
-            </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-slate-500 mr-1">Periode:</span>
+            <button
+              onClick={() => setPeriodType("monthly")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                periodType === "monthly"
+                  ? "bg-emerald-600 text-white shadow-xs"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              Bulanan
+            </button>
+            <button
+              onClick={() => setPeriodType("yearly")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                periodType === "yearly"
+                  ? "bg-emerald-600 text-white shadow-xs"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+              }`}
+            >
+              Tahunan
+            </button>
           </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-3">
           {periodType === "monthly" && (
-            <div className="flex items-center gap-2">
-              <label className="text-xs font-medium text-slate-600">Bulan:</label>
+            <div className="flex items-center gap-1.5">
+              <label className="text-xs font-medium text-slate-500">Bulan:</label>
               <select
                 value={month}
                 onChange={(e) => setMonth(e.target.value)}
-                className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
               >
                 {MONTHS.map((m) => (
                   <option key={m.value} value={m.value}>{m.label}</option>
@@ -449,12 +447,12 @@ export default function LaporanPeriodik() {
             </div>
           )}
 
-          <div className="flex items-center gap-2">
-            <label className="text-xs font-medium text-slate-600">Tahun:</label>
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs font-medium text-slate-500">Tahun:</label>
             <select
               value={year}
               onChange={(e) => setYear(e.target.value)}
-              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
             >
               {YEARS.map((y) => (
                 <option key={y} value={y}>{y}</option>
@@ -497,154 +495,153 @@ export default function LaporanPeriodik() {
       </div>
 
       {/* KPI Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {/* Card 1: Inspeksi */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              <ClipboardCheck className="w-4 h-4 text-emerald-600" />
-              <span>Total Inspeksi</span>
+        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between h-full">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
+              Total Inspeksi
+            </span>
+            <div className="w-7 h-7 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+              <ClipboardCheck className="w-4 h-4" />
             </div>
-            <p className="text-2xl font-bold text-slate-900 mt-2">{inspectionsCount}</p>
-            <p className="text-xs text-emerald-700 mt-1 font-medium flex items-center gap-1">
-              <CheckCircle2 className="w-3.5 h-3.5" /> {goodInspections} Sesuai Standar
-            </p>
           </div>
-          <div className="p-3 rounded-2xl bg-emerald-50 text-emerald-600">
-            <ClipboardCheck className="w-5 h-5" />
-          </div>
+          <p className="text-2xl font-black text-slate-900 tracking-tight my-1.5">{inspectionsCount}</p>
+          <p className="text-xs text-emerald-700 font-medium flex items-center gap-1 truncate">
+            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{goodInspections} Sesuai Standar</span>
+          </p>
         </div>
 
         {/* Card 2: Kerusakan Utilitas */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              <Wrench className="w-4 h-4 text-amber-600" />
-              <span>Kerusakan Utilitas</span>
+        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between h-full">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
+              Kerusakan Utilitas
+            </span>
+            <div className="w-7 h-7 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+              <Wrench className="w-4 h-4" />
             </div>
-            <p className="text-2xl font-bold text-slate-900 mt-2">{utilitiesCount}</p>
-            <p className="text-xs text-amber-700 mt-1 font-medium flex items-center gap-1">
-              <Flame className="w-3.5 h-3.5" />
-              {reportData?.utilities?.filter((u) => u.urgency === "Segera").length || 0} Urgensi Segera
-            </p>
           </div>
-          <div className="p-3 rounded-2xl bg-amber-50 text-amber-600">
-            <Wrench className="w-5 h-5" />
-          </div>
+          <p className="text-2xl font-black text-slate-900 tracking-tight my-1.5">{utilitiesCount}</p>
+          <p className="text-xs text-amber-700 font-medium flex items-center gap-1 truncate">
+            <Flame className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{reportData?.utilities?.filter((u) => u.urgency === "Segera").length || 0} Urgensi Segera</span>
+          </p>
         </div>
 
         {/* Card 3: Insiden Keselamatan */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              <ShieldAlert className="w-4 h-4 text-rose-600" />
-              <span>Insiden K3</span>
+        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between h-full">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
+              Insiden K3
+            </span>
+            <div className="w-7 h-7 rounded-xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0">
+              <ShieldAlert className="w-4 h-4" />
             </div>
-            <p className="text-2xl font-bold text-slate-900 mt-2">{incidentsCount}</p>
-            <p className="text-xs text-rose-700 mt-1 font-medium flex items-center gap-1">
-              <AlertTriangle className="w-3.5 h-3.5" /> Kasus K3 & Pasien
-            </p>
           </div>
-          <div className="p-3 rounded-2xl bg-rose-50 text-rose-600">
-            <ShieldAlert className="w-5 h-5" />
-          </div>
+          <p className="text-2xl font-black text-slate-900 tracking-tight my-1.5">{incidentsCount}</p>
+          <p className="text-xs text-rose-700 font-medium flex items-center gap-1 truncate">
+            <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{incidentsCount} Laporan Kasus</span>
+          </p>
         </div>
 
         {/* Card 4: Inventarisasi Aset & Alkes */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              <Package className="w-4 h-4 text-blue-600" />
-              <span>Aset & Sarpras</span>
+        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between h-full">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
+              Aset & Sarpras
+            </span>
+            <div className="w-7 h-7 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shrink-0">
+              <Package className="w-4 h-4" />
             </div>
-            <p className="text-2xl font-bold text-slate-900 mt-2">{reportData?.inventories?.length || 0}</p>
-            <p className="text-xs text-blue-700 mt-1 font-medium flex items-center gap-1">
-              <Layers className="w-3.5 h-3.5" /> Terinventarisasi
-            </p>
           </div>
-          <div className="p-3 rounded-2xl bg-blue-50 text-blue-600">
-            <Package className="w-5 h-5" />
-          </div>
+          <p className="text-2xl font-black text-slate-900 tracking-tight my-1.5">{reportData?.inventories?.length || 0}</p>
+          <p className="text-xs text-blue-700 font-medium flex items-center gap-1 truncate">
+            <Layers className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">{reportData?.inventories?.length || 0} Terdata Aktif</span>
+          </p>
         </div>
 
         {/* Card 5: Kepatuhan Standar */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              <Award className="w-4 h-4 text-teal-600" />
-              <span>Skor Standar MFK</span>
+        <div className="bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-xs flex flex-col justify-between h-full col-span-2 sm:col-span-1 lg:col-span-1">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider truncate">
+              Skor Kepatuhan
+            </span>
+            <div className="w-7 h-7 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center shrink-0">
+              <Award className="w-4 h-4" />
             </div>
-            <p className="text-2xl font-bold text-slate-900 mt-2">{complianceRate}%</p>
-            <p className="text-xs text-teal-700 mt-1 font-medium flex items-center gap-1">
-              <TrendingUp className="w-3.5 h-3.5" /> Kepatuhan Sarpras
-            </p>
           </div>
-          <div className="p-3 rounded-2xl bg-teal-50 text-teal-600">
-            <Award className="w-5 h-5" />
-          </div>
+          <p className="text-2xl font-black text-slate-900 tracking-tight my-1.5">{complianceRate}%</p>
+          <p className="text-xs text-teal-700 font-medium flex items-center gap-1 truncate">
+            <TrendingUp className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">Standar Akreditasi</span>
+          </p>
         </div>
       </div>
 
       {/* Navigation Tabs for detailed sections */}
-      <div className="flex flex-wrap gap-2 print:hidden">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 print:hidden">
         <button
           onClick={() => setActiveTab("inspeksi")}
-          className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition cursor-pointer ${
+          className={`w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer text-center ${
             activeTab === "inspeksi"
               ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/20"
               : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
           }`}
         >
-          <CheckSquare className="w-4 h-4" />
-          <span>Rekap Inspeksi Ruangan ({reportData?.inspections?.length || 0})</span>
+          <CheckSquare className="w-4 h-4 shrink-0" />
+          <span className="truncate">Inspeksi ({reportData?.inspections?.length || 0})</span>
         </button>
 
         <button
           onClick={() => setActiveTab("utilitas")}
-          className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition cursor-pointer ${
+          className={`w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer text-center ${
             activeTab === "utilitas"
               ? "bg-amber-600 text-white shadow-md shadow-amber-600/20"
               : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
           }`}
         >
-          <Wrench className="w-4 h-4" />
-          <span>Rekap Kerusakan Utilitas ({reportData?.utilities?.length || 0})</span>
+          <Wrench className="w-4 h-4 shrink-0" />
+          <span className="truncate">Utilitas ({reportData?.utilities?.length || 0})</span>
         </button>
 
         <button
           onClick={() => setActiveTab("insiden")}
-          className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition cursor-pointer ${
+          className={`w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer text-center ${
             activeTab === "insiden"
               ? "bg-rose-600 text-white shadow-md shadow-rose-600/20"
               : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
           }`}
         >
-          <ShieldAlert className="w-4 h-4" />
-          <span>Rekap Insiden & K3 ({reportData?.incidents?.length || 0})</span>
+          <ShieldAlert className="w-4 h-4 shrink-0" />
+          <span className="truncate">Insiden K3 ({reportData?.incidents?.length || 0})</span>
         </button>
 
         <button
           onClick={() => setActiveTab("inventaris")}
-          className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition cursor-pointer ${
+          className={`w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer text-center ${
             activeTab === "inventaris"
               ? "bg-blue-600 text-white shadow-md shadow-blue-600/20"
               : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
           }`}
         >
-          <Package className="w-4 h-4" />
-          <span>Rekap Aset & Sarpras ({reportData?.inventories?.length || 0})</span>
+          <Package className="w-4 h-4 shrink-0" />
+          <span className="truncate">Aset & Sarpras ({reportData?.inventories?.length || 0})</span>
         </button>
 
         <button
           onClick={() => setActiveTab("pengesahan")}
-          className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition cursor-pointer ${
+          className={`w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer text-center col-span-2 sm:col-span-1 lg:col-span-1 ${
             activeTab === "pengesahan"
               ? "bg-slate-900 text-white shadow-md"
               : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
           }`}
         >
-          <FileText className="w-4 h-4" />
-          <span>Lembar Pengesahan & Kop Resmi</span>
+          <FileText className="w-4 h-4 shrink-0" />
+          <span className="truncate">Pengesahan & KOP</span>
         </button>
       </div>
 
@@ -972,17 +969,17 @@ export default function LaporanPeriodik() {
             {/* Header */}
             <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row gap-3 sm:items-center justify-between bg-slate-50/60">
               <div className="flex items-center gap-2">
-                <Package className="w-5 h-5 text-blue-600" />
+                <Package className="w-5 h-5 text-blue-600 shrink-0" />
                 <div>
                   <h3 className="font-bold text-slate-800 text-base">
-                    Rekapitulasi Inventarisasi Aset & Sarpras (Terpisah Per Kategori)
+                    Rekapitulasi Inventarisasi Aset & Sarpras
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Laporan terpisah: Barang & Sarana Prasarana, Bahan Berbahaya & Beracun (B3), serta Alat Kesehatan (Alkes) & Kalibrasi
+                    Monitoring terpisah: Barang/Sarpras, Bahan B3 Medis, serta Alat Kesehatan & Kalibrasi.
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 {isAdmin && (
                   <button
                     onClick={() => handleDownloadPDF("inventaris")}
@@ -993,7 +990,7 @@ export default function LaporanPeriodik() {
                     <span>Download PDF Gabungan Aset</span>
                   </button>
                 )}
-                <span className="text-xs text-slate-500 font-medium">
+                <span className="text-xs text-slate-500 font-medium whitespace-nowrap">
                   Total: <b>{allInventories.length}</b> aset
                 </span>
               </div>
@@ -1004,7 +1001,7 @@ export default function LaporanPeriodik() {
               {/* Card 1: Barang / Sarpras */}
               <div
                 onClick={() => setInventarisFilter("barang")}
-                className={`p-4 rounded-2xl border transition cursor-pointer ${
+                className={`p-3.5 sm:p-4 rounded-2xl border transition cursor-pointer flex flex-col justify-between h-full ${
                   inventarisFilter === "barang"
                     ? "bg-blue-600 text-white border-blue-600 shadow-md"
                     : "bg-white border-slate-200 hover:border-blue-300"
@@ -1012,7 +1009,7 @@ export default function LaporanPeriodik() {
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Package className={`w-4 h-4 ${inventarisFilter === "barang" ? "text-white" : "text-blue-600"}`} />
+                    <Package className={`w-4 h-4 shrink-0 ${inventarisFilter === "barang" ? "text-white" : "text-blue-600"}`} />
                     <span className="text-xs font-bold uppercase tracking-wider">1. Barang & Sarpras</span>
                   </div>
                   {isAdmin && (
@@ -1035,16 +1032,16 @@ export default function LaporanPeriodik() {
                     </button>
                   )}
                 </div>
-                <p className="text-2xl font-bold mt-2">{barangInventories.length}</p>
-                <p className={`text-[11px] mt-0.5 ${inventarisFilter === "barang" ? "text-blue-100" : "text-slate-500"}`}>
-                  Kondisi Baik: {barangInventories.filter((i) => i.condition_status === "Baik").length} • Rusak: {barangInventories.filter((i) => i.condition_status !== "Baik").length}
+                <p className="text-2xl font-bold my-1">{barangInventories.length}</p>
+                <p className={`text-[11px] truncate ${inventarisFilter === "barang" ? "text-blue-100" : "text-slate-500"}`}>
+                  Baik: {barangInventories.filter((i) => i.condition_status === "Baik").length} • Rusak: {barangInventories.filter((i) => i.condition_status !== "Baik").length}
                 </p>
               </div>
 
               {/* Card 2: Bahan B3 */}
               <div
                 onClick={() => setInventarisFilter("b3")}
-                className={`p-4 rounded-2xl border transition cursor-pointer ${
+                className={`p-3.5 sm:p-4 rounded-2xl border transition cursor-pointer flex flex-col justify-between h-full ${
                   inventarisFilter === "b3"
                     ? "bg-purple-600 text-white border-purple-600 shadow-md"
                     : "bg-white border-slate-200 hover:border-purple-300"
@@ -1052,7 +1049,7 @@ export default function LaporanPeriodik() {
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <FlaskConical className={`w-4 h-4 ${inventarisFilter === "b3" ? "text-white" : "text-purple-600"}`} />
+                    <FlaskConical className={`w-4 h-4 shrink-0 ${inventarisFilter === "b3" ? "text-white" : "text-purple-600"}`} />
                     <span className="text-xs font-bold uppercase tracking-wider">2. Bahan B3 Medis</span>
                   </div>
                   {isAdmin && (
@@ -1075,16 +1072,16 @@ export default function LaporanPeriodik() {
                     </button>
                   )}
                 </div>
-                <p className="text-2xl font-bold mt-2">{b3Inventories.length}</p>
-                <p className={`text-[11px] mt-0.5 ${inventarisFilter === "b3" ? "text-purple-100" : "text-slate-500"}`}>
-                  Penyimpanan Lemari B3 & Dokumen MSDS
+                <p className="text-2xl font-bold my-1">{b3Inventories.length}</p>
+                <p className={`text-[11px] truncate ${inventarisFilter === "b3" ? "text-purple-100" : "text-slate-500"}`}>
+                  Lemari B3 & Dokumen MSDS
                 </p>
               </div>
 
               {/* Card 3: Alat Kesehatan & Kalibrasi */}
               <div
                 onClick={() => setInventarisFilter("alkes")}
-                className={`p-4 rounded-2xl border transition cursor-pointer ${
+                className={`p-3.5 sm:p-4 rounded-2xl border transition cursor-pointer flex flex-col justify-between h-full ${
                   inventarisFilter === "alkes"
                     ? "bg-teal-600 text-white border-teal-600 shadow-md"
                     : "bg-white border-slate-200 hover:border-teal-300"
@@ -1092,8 +1089,8 @@ export default function LaporanPeriodik() {
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Activity className={`w-4 h-4 ${inventarisFilter === "alkes" ? "text-white" : "text-teal-600"}`} />
-                    <span className="text-xs font-bold uppercase tracking-wider">3. Alat Kesehatan (Alkes)</span>
+                    <Activity className={`w-4 h-4 shrink-0 ${inventarisFilter === "alkes" ? "text-white" : "text-teal-600"}`} />
+                    <span className="text-xs font-bold uppercase tracking-wider">3. Alat Kesehatan</span>
                   </div>
                   {isAdmin && (
                     <button
@@ -1115,9 +1112,9 @@ export default function LaporanPeriodik() {
                     </button>
                   )}
                 </div>
-                <p className="text-2xl font-bold mt-2">{alkesInventories.length}</p>
-                <p className={`text-[11px] mt-0.5 ${inventarisFilter === "alkes" ? "text-teal-100" : "text-slate-500"}`}>
-                  Terkalibrasi: {alkesInventories.filter((i) => i.calibration_date).length} • Wajib Kalibrasi: {alkesInventories.filter((i) => i.needs_calibration && !i.calibration_date).length}
+                <p className="text-2xl font-bold my-1">{alkesInventories.length}</p>
+                <p className={`text-[11px] truncate ${inventarisFilter === "alkes" ? "text-teal-100" : "text-slate-500"}`}>
+                  Kalibrasi: {alkesInventories.filter((i) => i.calibration_date).length} • Wajib: {alkesInventories.filter((i) => i.needs_calibration && !i.calibration_date).length}
                 </p>
               </div>
             </div>
