@@ -277,11 +277,11 @@ export default function ManajemenUser() {
                   const isCurrent = currentUser?.id === u.id;
                   const initials = u.name
                     ? u.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .slice(0, 2)
-                        .join("")
-                        .toUpperCase()
+                      .split(" ")
+                      .map((n) => n[0])
+                      .slice(0, 2)
+                      .join("")
+                      .toUpperCase()
                     : "U";
 
                   return (
@@ -494,7 +494,7 @@ export default function ManajemenUser() {
               className="w-4 h-4 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500"
             />
             <label htmlFor="is_active" className="text-sm font-medium text-slate-700 cursor-pointer">
-              Akun Aktif (Dapat masuk ke dalam aplikasi SIM-MFK)
+              Akun Aktif (Dapat masuk ke dalam aplikasi SIKELAK)
             </label>
           </div>
 
