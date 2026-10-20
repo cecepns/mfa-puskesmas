@@ -1,5 +1,4 @@
 {
-  "version": 2,
   "rewrites": [
     {
       "source": "/(.*)",
@@ -8,7 +7,7 @@
   ],
   "headers": [
     {
-      "source": "/(.*index.html|/)",
+      "source": "/",
       "headers": [
         {
           "key": "Cache-Control",
@@ -25,7 +24,7 @@
       ]
     },
     {
-      "source": "/(sw.js|registerSW.js|workbox-(.*).js|manifest.webmanifest)",
+      "source": "/index.html",
       "headers": [
         {
           "key": "Cache-Control",
@@ -38,6 +37,33 @@
         {
           "key": "Expires",
           "value": "0"
+        }
+      ]
+    },
+    {
+      "source": "/sw.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+        }
+      ]
+    },
+    {
+      "source": "/registerSW.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
+        }
+      ]
+    },
+    {
+      "source": "/manifest.webmanifest",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
         }
       ]
     },
