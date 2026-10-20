@@ -246,6 +246,7 @@ export default function FasilitasUtilitas() {
   };
 
   const getUtilityIcon = (sys) => {
+    if (!sys || typeof sys !== "string") return <Wrench className="w-3.5 h-3.5 text-slate-500" />;
     if (sys.includes("Listrik")) return <Zap className="w-3.5 h-3.5 text-amber-500" />;
     if (sys.includes("Gas Medis")) return <Layers className="w-3.5 h-3.5 text-teal-500" />;
     if (sys.includes("Kebakaran")) return <Flame className="w-3.5 h-3.5 text-rose-500" />;
@@ -282,6 +283,7 @@ export default function FasilitasUtilitas() {
             onClick={() => {
               setMode("inspeksi");
               setSelectedStatus("");
+              setList([]);
               setPagination((p) => ({ ...p, page: 1 }));
             }}
             className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
@@ -297,6 +299,7 @@ export default function FasilitasUtilitas() {
             onClick={() => {
               setMode("pelaporan");
               setSelectedStatus("");
+              setList([]);
               setPagination((p) => ({ ...p, page: 1 }));
             }}
             className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
@@ -618,7 +621,7 @@ export default function FasilitasUtilitas() {
                       <td className="px-4 py-3.5">
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-amber-50 text-amber-900 border border-amber-200">
                           {getUtilityIcon(row.utility_system)}
-                          {row.utility_system}
+                          {row.utility_system || "Sistem Utilitas"}
                         </span>
                       </td>
                       <td className="px-4 py-3.5 font-semibold text-slate-800 text-xs">

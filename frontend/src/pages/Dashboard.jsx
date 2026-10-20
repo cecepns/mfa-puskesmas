@@ -77,10 +77,10 @@ export default function Dashboard() {
     },
   ];
 
-  const filteredRooms = data.ruanganList.filter((r) =>
-    r.name.toLowerCase().includes(roomFilter.toLowerCase()) ||
-    r.category.toLowerCase().includes(roomFilter.toLowerCase()) ||
-    r.pic_name.toLowerCase().includes(roomFilter.toLowerCase())
+  const filteredRooms = (data.ruanganList || []).filter((r) =>
+    (r.name || "").toLowerCase().includes((roomFilter || "").toLowerCase()) ||
+    (r.category || "").toLowerCase().includes((roomFilter || "").toLowerCase()) ||
+    (r.pic_name || "").toLowerCase().includes((roomFilter || "").toLowerCase())
   );
 
   return (
