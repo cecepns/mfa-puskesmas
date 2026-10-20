@@ -93,12 +93,17 @@ app.get("/api/rooms", async (req, res) => {
   try {
     const search = (req.query.search || "").trim();
     const category = req.query.category || "";
+    const condition = req.query.condition || "";
     let whereClauses = ["1=1"];
     let params = [];
 
     if (category && category !== "Semua") {
       whereClauses.push("category = ?");
       params.push(category);
+    }
+    if (condition && condition !== "Semua") {
+      whereClauses.push("condition_status = ?");
+      params.push(condition);
     }
     if (search) {
       whereClauses.push("(name LIKE ? OR pic_name LIKE ?)");
@@ -721,6 +726,7 @@ app.get("/api/settings", async (req, res) => {
         instansiInduk: r.instansi_induk,
         dinasKesehatan: r.dinas_kesehatan,
         namaPuskesmas: r.nama_puskesmas,
+        logoUrl: r.logo_url || null,
         alamatKontak: r.alamat_kontak,
         kotaDokumen: r.kota_dokumen,
         pimpinanJabatan: r.pimpinan_jabatan,
@@ -742,6 +748,7 @@ app.put("/api/settings", async (req, res) => {
       instansiInduk,
       dinasKesehatan,
       namaPuskesmas,
+      logoUrl,
       alamatKontak,
       kotaDokumen,
       pimpinanJabatan,
@@ -756,13 +763,14 @@ app.put("/api/settings", async (req, res) => {
     if (rows.length === 0) {
       await pool.query(
         `INSERT INTO app_settings (
-          instansi_induk, dinas_kesehatan, nama_puskesmas, alamat_kontak, kota_dokumen,
+          instansi_induk, dinas_kesehatan, nama_puskesmas, logo_url, alamat_kontak, kota_dokumen,
           pimpinan_jabatan, pimpinan_nama, pimpinan_nip, pelapor_jabatan, pelapor_nama, pelapor_keterangan
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           instansiInduk || "PEMERINTAH KABUPATEN / KOTA",
           dinasKesehatan || "DINAS KESEHATAN KABUPATEN / KOTA",
           namaPuskesmas || "UPTD PUSKESMAS KECAMATAN",
+          logoUrl || null,
           alamatKontak || "",
           kotaDokumen || "Puskesmas",
           pimpinanJabatan || "Kepala UPTD Puskesmas",
@@ -779,6 +787,7 @@ app.put("/api/settings", async (req, res) => {
           instansi_induk = ?,
           dinas_kesehatan = ?,
           nama_puskesmas = ?,
+          logo_url = ?,
           alamat_kontak = ?,
           kota_dokumen = ?,
           pimpinan_jabatan = ?,
@@ -792,6 +801,7 @@ app.put("/api/settings", async (req, res) => {
           instansiInduk,
           dinasKesehatan,
           namaPuskesmas,
+          logoUrl || null,
           alamatKontak,
           kotaDokumen,
           pimpinanJabatan,

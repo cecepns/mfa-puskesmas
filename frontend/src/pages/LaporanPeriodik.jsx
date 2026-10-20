@@ -27,6 +27,9 @@ import {
   Edit,
   RotateCcw,
   Lock,
+  FlaskConical,
+  Activity,
+  Boxes,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { request } from "../utils/request";
@@ -38,6 +41,7 @@ import {
   INSPECTION_CATEGORIES,
   DEFAULT_KOP_CONFIG,
 } from "../utils/pdfGenerator";
+import defaultLogoPuskesmas from "../assets/logo-puskesmas.png";
 
 const MONTHS = [
   { value: "01", label: "Januari" },
@@ -241,7 +245,29 @@ export default function LaporanPeriodik() {
     toast.success("Laporan CSV berhasil diunduh");
   };
 
-  const handleDownloadPDF = (categoryMode = "all") => {
+  const [inventarisFilter, setInventarisFilter] = useState("all"); // "all" | "barang" | "b3" | "alkes"
+
+  const allInventories = reportData?.inventories || [];
+  const barangInventories = allInventories.filter(
+    (i) => i.category === "Sarpras" || i.category === "Barang" || (!i.category?.toUpperCase().includes("B3") && i.category !== "Alkes" && i.category !== "Kalibrasi" && i.category !== "Alat Medis")
+  );
+  const b3Inventories = allInventories.filter(
+    (i) => i.category === "B3" || i.category?.toUpperCase().includes("B3")
+  );
+  const alkesInventories = allInventories.filter(
+    (i) => i.category === "Alkes" || i.category === "Kalibrasi" || i.category === "Alat Medis"
+  );
+
+  const displayedInventories =
+    inventarisFilter === "barang"
+      ? barangInventories
+      : inventarisFilter === "b3"
+      ? b3Inventories
+      : inventarisFilter === "alkes"
+      ? alkesInventories
+      : allInventories;
+
+  const handleDownloadPDF = async (categoryMode = "all") => {
     if (!isAdmin) {
       toast.error("Akses ditolak: Unduh laporan PDF khusus untuk Administrator!");
       return;
@@ -252,7 +278,7 @@ export default function LaporanPeriodik() {
     }
     setGeneratingPdf(true);
     try {
-      downloadMFKReportPDF({
+      await downloadMFKReportPDF({
         reportData,
         mode: categoryMode,
         periodLabel,
@@ -265,8 +291,14 @@ export default function LaporanPeriodik() {
           ? "Laporan Kerusakan Utilitas"
           : categoryMode === "insiden"
           ? "Laporan Insiden K3"
+          : categoryMode === "inventaris_barang"
+          ? "Laporan Inventarisasi Barang & Sarpras"
+          : categoryMode === "inventaris_b3"
+          ? "Laporan Inventarisasi Bahan B3"
+          : categoryMode === "inventaris_alkes"
+          ? "Laporan Inventarisasi Alat Kesehatan"
           : categoryMode === "inventaris"
-          ? "Laporan Inventarisasi Sarpras & Alkes"
+          ? "Laporan Gabungan Inventarisasi"
           : `Laporan ${categoryMode}`;
       toast.success(`${label} berhasil diunduh dalam format PDF`);
     } catch (err) {
@@ -434,24 +466,33 @@ export default function LaporanPeriodik() {
 
       {/* Official Header for Print Mode Only */}
       <div className="hidden print:block border-b-2 border-slate-800 pb-4 mb-6">
-        <div className="text-center space-y-1">
-          <p className="text-xs font-bold uppercase tracking-widest text-slate-600">
-            {kopConfig.instansiInduk || "PEMERINTAH KABUPATEN / KOTA"} • {kopConfig.dinasKesehatan || "DINAS KESEHATAN KABUPATEN / KOTA"}
-          </p>
-          <h1 className="text-xl font-extrabold uppercase text-slate-900 tracking-wider">
-            {kopConfig.namaPuskesmas || "UPTD PUSKESMAS KECAMATAN"}
-          </h1>
-          <p className="text-xs text-slate-500">
-            {kopConfig.alamatKontak || "-"}
-          </p>
-          <div className="mt-3 pt-2 border-t border-slate-400">
-            <h2 className="text-base font-bold text-slate-900 uppercase">
-              LAPORAN PROGRAM MANAJEMEN FASILITAS DAN KESELAMATAN (MFK)
-            </h2>
-            <p className="text-xs text-slate-600 font-medium">
-              Periode: {periodLabel}
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 shrink-0 flex items-center justify-center">
+            <img
+              src={kopConfig.logoUrl || defaultLogoPuskesmas}
+              alt="Logo Puskesmas"
+              className="w-full h-full object-contain"
+            />
+          </div>
+          <div className="flex-1 text-center space-y-0.5">
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-600">
+              {kopConfig.instansiInduk || "PEMERINTAH KABUPATEN / KOTA"} • {kopConfig.dinasKesehatan || "DINAS KESEHATAN KABUPATEN / KOTA"}
+            </p>
+            <h1 className="text-xl font-extrabold uppercase text-slate-900 tracking-wider">
+              {kopConfig.namaPuskesmas || "UPTD PUSKESMAS MUARA KULAM"}
+            </h1>
+            <p className="text-xs text-slate-500">
+              {kopConfig.alamatKontak || "-"}
             </p>
           </div>
+        </div>
+        <div className="mt-3 pt-2 border-t border-slate-400 text-center">
+          <h2 className="text-base font-bold text-slate-900 uppercase">
+            LAPORAN PROGRAM MANAJEMEN FASILITAS DAN KESELAMATAN (MFK)
+          </h2>
+          <p className="text-xs text-slate-600 font-medium">
+            Periode: {periodLabel}
+          </p>
         </div>
       </div>
 
@@ -928,35 +969,240 @@ export default function LaporanPeriodik() {
         {/* TAB 4: INVENTARIS */}
         {activeTab === "inventaris" && (
           <div>
+            {/* Header */}
             <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row gap-3 sm:items-center justify-between bg-slate-50/60">
               <div className="flex items-center gap-2">
                 <Package className="w-5 h-5 text-blue-600" />
                 <div>
                   <h3 className="font-bold text-slate-800 text-base">
-                    Rekapitulasi Inventarisasi Sarpras, B3 & Alat Kesehatan
+                    Rekapitulasi Inventarisasi Aset & Sarpras (Terpisah Per Kategori)
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Daftar seluruh sarana, prasarana, bahan berbahaya (B3), dan alat medis yang terdata di ruangan Puskesmas
+                    Laporan terpisah: Barang & Sarana Prasarana, Bahan Berbahaya & Beracun (B3), serta Alat Kesehatan (Alkes) & Kalibrasi
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 {isAdmin && (
                   <button
                     onClick={() => handleDownloadPDF("inventaris")}
                     disabled={generatingPdf}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-800 rounded-lg text-xs font-semibold border border-blue-200 transition cursor-pointer disabled:opacity-50"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold shadow-xs transition cursor-pointer disabled:opacity-50"
                   >
-                    <Download className="w-3.5 h-3.5 text-blue-600" />
-                    <span>Download PDF Inventaris</span>
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Download PDF Gabungan Aset</span>
                   </button>
                 )}
-                <span className="text-xs text-slate-500">
-                  Total: <b>{reportData?.inventories?.length || 0}</b> aset
+                <span className="text-xs text-slate-500 font-medium">
+                  Total: <b>{allInventories.length}</b> aset
                 </span>
               </div>
             </div>
 
+            {/* 3 Modul Cards: Barang/Sarpras, B3, Alkes */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-4 sm:p-5 bg-slate-50/50 border-b border-slate-100">
+              {/* Card 1: Barang / Sarpras */}
+              <div
+                onClick={() => setInventarisFilter("barang")}
+                className={`p-4 rounded-2xl border transition cursor-pointer ${
+                  inventarisFilter === "barang"
+                    ? "bg-blue-600 text-white border-blue-600 shadow-md"
+                    : "bg-white border-slate-200 hover:border-blue-300"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Package className={`w-4 h-4 ${inventarisFilter === "barang" ? "text-white" : "text-blue-600"}`} />
+                    <span className="text-xs font-bold uppercase tracking-wider">1. Barang & Sarpras</span>
+                  </div>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDownloadPDF("inventaris_barang");
+                      }}
+                      disabled={generatingPdf}
+                      className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition ${
+                        inventarisFilter === "barang"
+                          ? "bg-white/20 hover:bg-white text-white hover:text-blue-700"
+                          : "bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200"
+                      }`}
+                      title="Download PDF Laporan Barang & Sarpras"
+                    >
+                      <Download className="w-3 h-3" />
+                      <span>PDF</span>
+                    </button>
+                  )}
+                </div>
+                <p className="text-2xl font-bold mt-2">{barangInventories.length}</p>
+                <p className={`text-[11px] mt-0.5 ${inventarisFilter === "barang" ? "text-blue-100" : "text-slate-500"}`}>
+                  Kondisi Baik: {barangInventories.filter((i) => i.condition_status === "Baik").length} • Rusak: {barangInventories.filter((i) => i.condition_status !== "Baik").length}
+                </p>
+              </div>
+
+              {/* Card 2: Bahan B3 */}
+              <div
+                onClick={() => setInventarisFilter("b3")}
+                className={`p-4 rounded-2xl border transition cursor-pointer ${
+                  inventarisFilter === "b3"
+                    ? "bg-purple-600 text-white border-purple-600 shadow-md"
+                    : "bg-white border-slate-200 hover:border-purple-300"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <FlaskConical className={`w-4 h-4 ${inventarisFilter === "b3" ? "text-white" : "text-purple-600"}`} />
+                    <span className="text-xs font-bold uppercase tracking-wider">2. Bahan B3 Medis</span>
+                  </div>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDownloadPDF("inventaris_b3");
+                      }}
+                      disabled={generatingPdf}
+                      className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition ${
+                        inventarisFilter === "b3"
+                          ? "bg-white/20 hover:bg-white text-white hover:text-purple-700"
+                          : "bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200"
+                      }`}
+                      title="Download PDF Laporan Bahan B3"
+                    >
+                      <Download className="w-3 h-3" />
+                      <span>PDF</span>
+                    </button>
+                  )}
+                </div>
+                <p className="text-2xl font-bold mt-2">{b3Inventories.length}</p>
+                <p className={`text-[11px] mt-0.5 ${inventarisFilter === "b3" ? "text-purple-100" : "text-slate-500"}`}>
+                  Penyimpanan Lemari B3 & Dokumen MSDS
+                </p>
+              </div>
+
+              {/* Card 3: Alat Kesehatan & Kalibrasi */}
+              <div
+                onClick={() => setInventarisFilter("alkes")}
+                className={`p-4 rounded-2xl border transition cursor-pointer ${
+                  inventarisFilter === "alkes"
+                    ? "bg-teal-600 text-white border-teal-600 shadow-md"
+                    : "bg-white border-slate-200 hover:border-teal-300"
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Activity className={`w-4 h-4 ${inventarisFilter === "alkes" ? "text-white" : "text-teal-600"}`} />
+                    <span className="text-xs font-bold uppercase tracking-wider">3. Alat Kesehatan (Alkes)</span>
+                  </div>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDownloadPDF("inventaris_alkes");
+                      }}
+                      disabled={generatingPdf}
+                      className={`px-2 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 transition ${
+                        inventarisFilter === "alkes"
+                          ? "bg-white/20 hover:bg-white text-white hover:text-teal-700"
+                          : "bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200"
+                      }`}
+                      title="Download PDF Laporan Alkes & Kalibrasi"
+                    >
+                      <Download className="w-3 h-3" />
+                      <span>PDF</span>
+                    </button>
+                  )}
+                </div>
+                <p className="text-2xl font-bold mt-2">{alkesInventories.length}</p>
+                <p className={`text-[11px] mt-0.5 ${inventarisFilter === "alkes" ? "text-teal-100" : "text-slate-500"}`}>
+                  Terkalibrasi: {alkesInventories.filter((i) => i.calibration_date).length} • Wajib Kalibrasi: {alkesInventories.filter((i) => i.needs_calibration && !i.calibration_date).length}
+                </p>
+              </div>
+            </div>
+
+            {/* Sub-filter bar */}
+            <div className="px-4 sm:px-5 py-3 bg-white border-b border-slate-100 flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs font-semibold text-slate-500 mr-1">Tampilkan:</span>
+                <button
+                  onClick={() => setInventarisFilter("all")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                    inventarisFilter === "all"
+                      ? "bg-slate-900 text-white shadow-xs"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  Semua ({allInventories.length})
+                </button>
+                <button
+                  onClick={() => setInventarisFilter("barang")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                    inventarisFilter === "barang"
+                      ? "bg-blue-600 text-white shadow-xs"
+                      : "bg-blue-50 text-blue-700 hover:bg-blue-100"
+                  }`}
+                >
+                  Barang & Sarpras ({barangInventories.length})
+                </button>
+                <button
+                  onClick={() => setInventarisFilter("b3")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                    inventarisFilter === "b3"
+                      ? "bg-purple-600 text-white shadow-xs"
+                      : "bg-purple-50 text-purple-700 hover:bg-purple-100"
+                  }`}
+                >
+                  Bahan B3 ({b3Inventories.length})
+                </button>
+                <button
+                  onClick={() => setInventarisFilter("alkes")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                    inventarisFilter === "alkes"
+                      ? "bg-teal-600 text-white shadow-xs"
+                      : "bg-teal-50 text-teal-700 hover:bg-teal-100"
+                  }`}
+                >
+                  Alat Kesehatan ({alkesInventories.length})
+                </button>
+              </div>
+
+              {isAdmin && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => {
+                      const mode =
+                        inventarisFilter === "barang"
+                          ? "inventaris_barang"
+                          : inventarisFilter === "b3"
+                          ? "inventaris_b3"
+                          : inventarisFilter === "alkes"
+                          ? "inventaris_alkes"
+                          : "inventaris";
+                      handleDownloadPDF(mode);
+                    }}
+                    disabled={generatingPdf}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-xs transition cursor-pointer disabled:opacity-50"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>
+                      {inventarisFilter === "all"
+                        ? "Download PDF Gabungan"
+                        : `Download PDF ${
+                            inventarisFilter === "barang"
+                              ? "Barang & Sarpras"
+                              : inventarisFilter === "b3"
+                              ? "Bahan B3"
+                              : "Alat Kesehatan"
+                          }`}
+                    </span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Table */}
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse min-w-[900px]">
                 <thead>
@@ -972,14 +1218,14 @@ export default function LaporanPeriodik() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
-                  {!reportData?.inventories?.length ? (
+                  {!displayedInventories.length ? (
                     <tr>
                       <td colSpan="8" className="px-4 py-8 text-center text-slate-400">
-                        Belum ada data inventarisasi sarpras atau alkes terdaftar.
+                        Tidak ada data inventarisasi untuk filter kategori ini.
                       </td>
                     </tr>
                   ) : (
-                    reportData.inventories.map((inv, idx) => (
+                    displayedInventories.map((inv, idx) => (
                       <tr key={inv.id || idx} className="hover:bg-slate-50/80 transition-colors">
                         <td className="px-4 py-3.5 text-center text-xs text-slate-400 font-medium">
                           {idx + 1}
@@ -989,13 +1235,11 @@ export default function LaporanPeriodik() {
                         </td>
                         <td className="px-4 py-3.5 text-xs">
                           <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
-                            inv.category === "Alat Medis" || inv.category === "Alkes"
-                              ? "bg-blue-100 text-blue-800"
+                            inv.category === "Alat Medis" || inv.category === "Alkes" || inv.category === "Kalibrasi"
+                              ? "bg-teal-100 text-teal-800"
                               : inv.category === "B3" || inv.category?.includes("B3")
                               ? "bg-purple-100 text-purple-800"
-                              : inv.category === "Utilitas"
-                              ? "bg-amber-100 text-amber-800"
-                              : "bg-slate-100 text-slate-700"
+                              : "bg-blue-100 text-blue-800"
                           }`}>
                             {inv.category}
                           </span>
@@ -1089,20 +1333,31 @@ export default function LaporanPeriodik() {
                 )}
               </div>
 
-              {/* KOP Surat Preview in Pengesahan */}
-              <div className="bg-white p-4 rounded-xl border border-slate-200 text-center space-y-1">
-                <p className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
-                  {kopConfig.instansiInduk || "PEMERINTAH KABUPATEN / KOTA"}
-                </p>
-                <p className="text-xs font-extrabold uppercase tracking-wide text-slate-800">
-                  {kopConfig.dinasKesehatan || "DINAS KESEHATAN KABUPATEN / KOTA"}
-                </p>
-                <h4 className="text-base font-black uppercase text-emerald-700 tracking-wide">
-                  {kopConfig.namaPuskesmas || "UPTD PUSKESMAS KECAMATAN"}
-                </h4>
-                <p className="text-[10px] text-slate-500">
-                  {kopConfig.alamatKontak || "-"}
-                </p>
+              {/* KOP Surat Preview in Pengesahan with Logo */}
+              <div className="bg-white p-4 rounded-xl border border-slate-200">
+                <div className="flex items-center gap-3">
+                  <div className="w-14 h-14 shrink-0 flex items-center justify-center">
+                    <img
+                      src={kopConfig.logoUrl || defaultLogoPuskesmas}
+                      alt="Logo Puskesmas"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  <div className="flex-1 text-center space-y-0.5">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                      {kopConfig.instansiInduk || "PEMERINTAH KABUPATEN / KOTA"}
+                    </p>
+                    <p className="text-xs font-extrabold uppercase tracking-wide text-slate-800">
+                      {kopConfig.dinasKesehatan || "DINAS KESEHATAN KABUPATEN / KOTA"}
+                    </p>
+                    <h4 className="text-sm font-black uppercase text-emerald-700 tracking-wide">
+                      {kopConfig.namaPuskesmas || "UPTD PUSKESMAS MUARA KULAM"}
+                    </h4>
+                    <p className="text-[9px] text-slate-500">
+                      {kopConfig.alamatKontak || "-"}
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
@@ -1295,13 +1550,86 @@ export default function LaporanPeriodik() {
             </div>
           </div>
 
-          {/* Opsi 3: Laporan Khusus Lainnya */}
+          {/* Opsi 3: Download Terpisah Rekapitulasi Inventarisasi (Barang, B3, Alkes) */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                <Package className="w-4 h-4 text-blue-600" />
+                <span>Download Terpisah Inventarisasi (3 Modul)</span>
+              </h4>
+              <span className="text-xs text-slate-400">Pilih modul aset</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="p-2.5 bg-white border border-slate-200 hover:border-blue-300 rounded-xl flex items-center justify-between gap-2">
+                <div>
+                  <p className="font-semibold text-slate-800 text-xs">1. Barang & Sarpras</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">{barangInventories.length} item fisik</p>
+                </div>
+                <button
+                  onClick={() => handleDownloadPDF("inventaris_barang")}
+                  disabled={generatingPdf}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-800 text-xs font-semibold rounded-lg transition cursor-pointer shrink-0 disabled:opacity-50"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>PDF</span>
+                </button>
+              </div>
+
+              <div className="p-2.5 bg-white border border-slate-200 hover:border-purple-300 rounded-xl flex items-center justify-between gap-2">
+                <div>
+                  <p className="font-semibold text-slate-800 text-xs">2. Bahan B3 Medis</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">{b3Inventories.length} bahan B3 terdata</p>
+                </div>
+                <button
+                  onClick={() => handleDownloadPDF("inventaris_b3")}
+                  disabled={generatingPdf}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-purple-50 hover:bg-purple-600 hover:text-white text-purple-800 text-xs font-semibold rounded-lg transition cursor-pointer shrink-0 disabled:opacity-50"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>PDF</span>
+                </button>
+              </div>
+
+              <div className="p-2.5 bg-white border border-slate-200 hover:border-teal-300 rounded-xl flex items-center justify-between gap-2">
+                <div>
+                  <p className="font-semibold text-slate-800 text-xs">3. Alat Kesehatan & Kalibrasi</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">{alkesInventories.length} alat medis</p>
+                </div>
+                <button
+                  onClick={() => handleDownloadPDF("inventaris_alkes")}
+                  disabled={generatingPdf}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-teal-50 hover:bg-teal-600 hover:text-white text-teal-800 text-xs font-semibold rounded-lg transition cursor-pointer shrink-0 disabled:opacity-50"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>PDF</span>
+                </button>
+              </div>
+
+              <div className="p-2.5 bg-white border border-slate-200 hover:border-slate-300 rounded-xl flex items-center justify-between gap-2">
+                <div>
+                  <p className="font-semibold text-slate-800 text-xs">Gabungan Semua Inventaris</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">{allInventories.length} total seluruh aset</p>
+                </div>
+                <button
+                  onClick={() => handleDownloadPDF("inventaris")}
+                  disabled={generatingPdf}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-slate-100 hover:bg-slate-800 hover:text-white text-slate-700 text-xs font-semibold rounded-lg transition cursor-pointer shrink-0 disabled:opacity-50"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>PDF</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Opsi 4: Laporan Khusus Utilitas & Insiden */}
           <div>
             <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider mb-2 flex items-center gap-1.5">
               <Wrench className="w-4 h-4 text-amber-600" />
-              <span>Laporan Khusus Utilitas, Insiden & Inventaris</span>
+              <span>Laporan Khusus Utilitas & Insiden K3</span>
             </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <div className="p-2.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between gap-2">
                 <div>
                   <p className="font-semibold text-slate-800 text-xs">Utilitas</p>
@@ -1330,23 +1658,6 @@ export default function LaporanPeriodik() {
                   onClick={() => handleDownloadPDF("insiden")}
                   disabled={generatingPdf}
                   className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 text-rose-800 hover:bg-rose-600 hover:text-white border border-rose-200 text-xs font-semibold rounded-lg transition cursor-pointer shrink-0 disabled:opacity-50"
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>PDF</span>
-                </button>
-              </div>
-
-              <div className="p-2.5 bg-white border border-slate-200 rounded-xl flex items-center justify-between gap-2">
-                <div>
-                  <p className="font-semibold text-slate-800 text-xs">Aset & Sarpras</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">
-                    {reportData?.inventories?.length || 0} barang
-                  </p>
-                </div>
-                <button
-                  onClick={() => handleDownloadPDF("inventaris")}
-                  disabled={generatingPdf}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-50 text-blue-800 hover:bg-blue-600 hover:text-white border border-blue-200 text-xs font-semibold rounded-lg transition cursor-pointer shrink-0 disabled:opacity-50"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>PDF</span>

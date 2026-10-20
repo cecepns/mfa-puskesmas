@@ -39,7 +39,7 @@ function ProtectedLayout() {
               <span className="text-sm font-bold text-slate-800 tracking-tight">
                 SIKELA (Sistem Informasi Kelola Fasilitas dan Keselamatan)
               </span>
-              <span className="text-xs text-slate-500">UPTD Puskesmas Muara Kulam • Akreditasi Standar MFK 1-10</span>
+              <span className="text-xs text-slate-500">UPTD Puskesmas Muara Kulam • Akreditasi Standar MFK</span>
             </div>
           </div>
 

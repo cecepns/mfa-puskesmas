@@ -15,6 +15,7 @@ import {
   Settings,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
+import logoImg from "../../assets/logo.png";
 
 const menus = [
   { name: "01. Dashboard", path: "/", icon: LayoutDashboard },
@@ -60,8 +61,8 @@ export default function Sidebar({ isOpen, setIsOpen }) {
           {/* Logo Header */}
           <div className="flex items-center justify-between px-6 py-5 border-b border-slate-800 bg-slate-950/40">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                <Building2 className="w-6 h-6" />
+              <div className="w-10 h-10 rounded-xl bg-white p-1 border border-slate-700 flex items-center justify-center shrink-0 shadow-xs">
+                <img src={logoImg} alt="Logo" className="w-full h-full object-contain" />
               </div>
               <div>
                 <h1 className="font-bold text-base tracking-wide text-white">SIKELA</h1>

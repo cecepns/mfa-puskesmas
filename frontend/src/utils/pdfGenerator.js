@@ -1,5 +1,6 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import defaultLogoPuskesmas from "../assets/logo-puskesmas.png";
 
 export const INSPECTION_CATEGORIES = [
   "Inspeksi Ruangan",
@@ -16,6 +17,7 @@ export const DEFAULT_KOP_CONFIG = {
   instansiInduk: "PEMERINTAH KABUPATEN / KOTA",
   dinasKesehatan: "DINAS KESEHATAN KABUPATEN / KOTA",
   namaPuskesmas: "UPTD PUSKESMAS MUARA KULAM",
+  logoUrl: null,
   alamatKontak: "Jl. Lintas Muara Kulam, Telp. (0733) 123456 | Pos-el: pkm.muarakulam@dinkes.go.id",
   kotaDokumen: "Muara Kulam",
   pimpinanJabatan: "Kepala UPTD Puskesmas",
@@ -38,26 +40,63 @@ const formatDate = (dateStr) => {
   });
 };
 
-const drawKopSurat = (doc, kop = DEFAULT_KOP_CONFIG) => {
+/**
+ * Konversi image URL / asset path / data URL menjadi Base64 data URI
+ */
+export const loadImageAsDataUrl = (src) => {
+  return new Promise((resolve) => {
+    if (!src) return resolve(null);
+    if (typeof src === "string" && src.startsWith("data:")) return resolve(src);
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL("image/png"));
+      } catch {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+};
+
+const drawKopSurat = (doc, kop = DEFAULT_KOP_CONFIG, logoDataUrl = null) => {
+  // Gambar Logo Puskesmas di Kiri jika ada
+  if (logoDataUrl) {
+    try {
+      doc.addImage(logoDataUrl, "PNG", 14, 10, 18, 20);
+    } catch {
+      // fallback jika ada format yang tidak didukung
+    }
+  }
+
+  const textX = logoDataUrl ? 112 : 105;
+
   // Kop Surat Pemerintah & Puskesmas
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(11);
+  doc.setFontSize(10.5);
   doc.setTextColor(30, 41, 59);
-  doc.text(kop.instansiInduk || DEFAULT_KOP_CONFIG.instansiInduk, 105, 14, { align: "center" });
+  doc.text(kop.instansiInduk || DEFAULT_KOP_CONFIG.instansiInduk, textX, 14, { align: "center" });
 
-  doc.setFontSize(13);
-  doc.text(kop.dinasKesehatan || DEFAULT_KOP_CONFIG.dinasKesehatan, 105, 20, { align: "center" });
+  doc.setFontSize(12.5);
+  doc.text(kop.dinasKesehatan || DEFAULT_KOP_CONFIG.dinasKesehatan, textX, 20, { align: "center" });
 
-  doc.setFontSize(14);
+  doc.setFontSize(13.5);
   doc.setTextColor(15, 118, 110); // Emerald teal
-  doc.text(kop.namaPuskesmas || DEFAULT_KOP_CONFIG.namaPuskesmas, 105, 26, { align: "center" });
+  doc.text(kop.namaPuskesmas || DEFAULT_KOP_CONFIG.namaPuskesmas, textX, 26, { align: "center" });
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
   doc.setTextColor(100, 116, 139);
   doc.text(
     kop.alamatKontak || DEFAULT_KOP_CONFIG.alamatKontak,
-    105,
+    textX,
     31,
     { align: "center" }
   );
@@ -72,14 +111,14 @@ const drawKopSurat = (doc, kop = DEFAULT_KOP_CONFIG) => {
   doc.line(14, 35.2, 196, 35.2);
 };
 
-const drawSignatures = (doc, currentY, kop = DEFAULT_KOP_CONFIG) => {
+const drawSignatures = (doc, currentY, kop = DEFAULT_KOP_CONFIG, logoDataUrl = null) => {
   const pageHeight = doc.internal.pageSize.getHeight();
   let y = currentY;
 
   // Pastikan cukup ruang untuk 2 blok tanda tangan (tinggi ~45mm)
   if (y + 45 > pageHeight - 20) {
     doc.addPage();
-    drawKopSurat(doc, kop);
+    drawKopSurat(doc, kop, logoDataUrl);
     y = 44;
   }
 
@@ -98,42 +137,37 @@ const drawSignatures = (doc, currentY, kop = DEFAULT_KOP_CONFIG) => {
 
   // Kolom Kiri: Mengetahui
   doc.setFont("helvetica", "normal");
-  doc.text("Mengetahui & Menyetujui,", 45, y, { align: "center" });
+  doc.text("Mengetahui & Menyetujui,", 30, y);
   doc.setFont("helvetica", "bold");
-  doc.text(kop.pimpinanJabatan || "Kepala UPTD Puskesmas", 45, y + 5, { align: "center" });
+  doc.text(kop.pimpinanJabatan || "Kepala UPTD Puskesmas", 30, y + 5);
 
-  // Kolom Kanan: Pelapor
+  // Kolom Kanan: Dilaporkan Oleh
   doc.setFont("helvetica", "normal");
-  doc.text("Dilaporkan Oleh,", 165, y, { align: "center" });
+  doc.text("Dilaporkan Oleh,", 140, y);
   doc.setFont("helvetica", "bold");
-  doc.text(kop.pelaporJabatan || "Penanggung Jawab MFK & K3", 165, y + 5, { align: "center" });
+  doc.text(kop.pelaporJabatan || "Penanggung Jawab MFK & K3", 140, y + 5);
 
   // Ruang Tanda Tangan
-  y += 26;
+  y += 24;
 
-  // Nama Pejabat Kiri
+  // Tanda Tangan Kiri
   doc.setFont("helvetica", "bold");
   doc.setTextColor(15, 23, 42);
-  doc.text(kop.pimpinanNama || "dr. H. Ahmad Fauzi, M.Kes", 45, y, { align: "center" });
+  doc.text(kop.pimpinanNama || "dr. H. Ahmad Fauzi, M.Kes", 30, y);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   doc.setTextColor(100, 116, 139);
-  doc.text(
-    kop.pimpinanNip ? `NIP. ${kop.pimpinanNip}` : "-",
-    45,
-    y + 4.5,
-    { align: "center" }
-  );
+  doc.text(`NIP. ${kop.pimpinanNip || "19780512 200501 1 008"}`, 30, y + 4.5);
 
-  // Nama Pejabat Kanan
+  // Tanda Tangan Kanan
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
   doc.setTextColor(15, 23, 42);
-  doc.text(kop.pelaporNama || "Administrator MFK / Tim Sanitasi", 165, y, { align: "center" });
+  doc.text(kop.pelaporNama || "Administrator MFK / Tim Sanitasi", 140, y);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   doc.setTextColor(100, 116, 139);
-  doc.text(kop.pelaporKeterangan || "Koordinator Keselamatan Fasilitas", 165, y + 4.5, { align: "center" });
+  doc.text(kop.pelaporKeterangan || "Koordinator Fasilitas & Keselamatan", 140, y + 4.5);
 };
 
 const addPageFooters = (doc) => {
@@ -161,9 +195,9 @@ const addPageFooters = (doc) => {
 /**
  * Download Laporan PDF Gabungan (Semua MFK) atau Per Kategori Inspeksi / Inventarisasi / Utilitas / Insiden
  */
-export const downloadMFKReportPDF = ({
+export const downloadMFKReportPDF = async ({
   reportData,
-  mode = "all", // "all" | inspectionCategory | "utilitas" | "insiden" | "inventaris"
+  mode = "all", // "all" | inspectionCategory | "utilitas" | "insiden" | "inventaris" | "inventaris_barang" | "inventaris_b3" | "inventaris_alkes"
   periodLabel = "",
   kopConfig = DEFAULT_KOP_CONFIG,
 }) => {
@@ -175,13 +209,17 @@ export const downloadMFKReportPDF = ({
     format: "a4",
   });
 
-  drawKopSurat(doc, kopConfig);
+  // Resolve logo image (custom upload or default logo-puskesmas.png)
+  const rawLogo = kopConfig.logoUrl || defaultLogoPuskesmas;
+  const logoDataUrl = await loadImageAsDataUrl(rawLogo);
+
+  drawKopSurat(doc, kopConfig, logoDataUrl);
 
   let startY = 42;
 
   // Title section
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(12);
+  doc.setFontSize(11.5);
   doc.setTextColor(15, 23, 42);
 
   let title = "LAPORAN PROGRAM MANAJEMEN FASILITAS & KESELAMATAN (MFK)";
@@ -196,10 +234,22 @@ export const downloadMFKReportPDF = ({
     title = "LAPORAN REKAPITULASI INSIDEN KESELAMATAN & K3";
     subtitle = "MONITORING KTD, KNC, KTC & MANAJEMEN RISIKO PUSKESMAS";
     fileName = `Laporan_Insiden_K3_${periodLabel.replace(/\s+/g, "_")}.pdf`;
+  } else if (mode === "inventaris_barang" || mode === "inventaris_sarpras") {
+    title = "LAPORAN REKAPITULASI INVENTARISASI BARANG & SARPRAS";
+    subtitle = "PENGELOLAAN SARANA PRASARANA, PERALATAN FASILITAS & MEUBELAIR PUSKESMAS";
+    fileName = `Laporan_Inventaris_Barang_Sarpras_${periodLabel.replace(/\s+/g, "_")}.pdf`;
+  } else if (mode === "inventaris_b3") {
+    title = "LAPORAN REKAPITULASI INVENTARISASI BAHAN BERBAHAYA & BERACUN (B3)";
+    subtitle = "LOGISTIK B3, DOKUMEN MSDS & PEMANTAUAN BAHAN BERBAHAYA PUSKESMAS";
+    fileName = `Laporan_Inventaris_B3_${periodLabel.replace(/\s+/g, "_")}.pdf`;
+  } else if (mode === "inventaris_alkes") {
+    title = "LAPORAN REKAPITULASI INVENTARISASI ALAT KESEHATAN (ALKES) & KALIBRASI";
+    subtitle = "MONITORING KELAIKAN ALAT MEDIS, JADWAL & SERTIFIKASI KALIBRASI";
+    fileName = `Laporan_Inventaris_Alkes_${periodLabel.replace(/\s+/g, "_")}.pdf`;
   } else if (mode === "inventaris") {
     title = "LAPORAN REKAPITULASI INVENTARISASI SARPRAS, B3 & ALKES";
     subtitle = "PENGELOLAAN SARANA PRASARANA, BAHAN B3, DAN KALIBRASI ALKES BERKALA";
-    fileName = `Laporan_Inventarisasi_${periodLabel.replace(/\s+/g, "_")}.pdf`;
+    fileName = `Laporan_Inventaris_Gabungan_${periodLabel.replace(/\s+/g, "_")}.pdf`;
   } else if (mode !== "all") {
     title = `LAPORAN HASIL ${mode.toUpperCase()}`;
     subtitle = "DOKUMEN BUKTI KEPATUHAN INSPEKSI SARANA & FASILITAS BERKALA";
@@ -210,13 +260,13 @@ export const downloadMFKReportPDF = ({
   startY += 5;
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9.5);
+  doc.setFontSize(9);
   doc.setTextColor(15, 118, 110);
   doc.text(subtitle, 105, startY, { align: "center" });
   startY += 5;
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(8.5);
+  doc.setFontSize(8);
   doc.setTextColor(71, 85, 105);
   doc.text(`Periode: ${periodLabel} | Waktu Ekspor: ${formatDate(new Date())}`, 105, startY, {
     align: "center",
@@ -225,38 +275,41 @@ export const downloadMFKReportPDF = ({
 
   // Summary box
   let filteredInspections = reportData.inspections || [];
-  if (mode !== "all" && mode !== "utilitas" && mode !== "insiden" && mode !== "inventaris") {
+  const isInventarisMode =
+    mode === "inventaris" ||
+    mode === "inventaris_barang" ||
+    mode === "inventaris_sarpras" ||
+    mode === "inventaris_b3" ||
+    mode === "inventaris_alkes";
+
+  if (!isInventarisMode && mode !== "all" && mode !== "utilitas" && mode !== "insiden") {
     filteredInspections = filteredInspections.filter((i) => i.inspection_type === mode);
   }
 
   const totalIns = filteredInspections.length;
   const baikCount = filteredInspections.filter((i) => i.result_status === "Baik").length;
   const perbaikanCount = filteredInspections.filter((i) => i.result_status === "Perlu Perbaikan").length;
-  const tidakStandarCount = filteredInspections.filter(
-    (i) => i.result_status === "Tidak Memenuhi Standar" || i.result_status === "Rusak Berat"
-  ).length;
-  const persentaseBaik = totalIns > 0 ? Math.round((baikCount / totalIns) * 100) : 100;
+  const tidakStandarCount = filteredInspections.filter((i) => i.result_status === "Tidak Standar").length;
+  const persentaseBaik = totalIns ? Math.round((baikCount / totalIns) * 100) : 0;
 
-  // Box background
   doc.setFillColor(248, 250, 252);
-  doc.setDrawColor(203, 213, 225);
-  doc.setLineWidth(0.2);
+  doc.setDrawColor(226, 232, 240);
   doc.roundedRect(14, startY, 182, 14, 2, 2, "FD");
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8);
-  doc.setTextColor(51, 65, 85);
+  doc.setFontSize(8.5);
+  doc.setTextColor(30, 41, 59);
 
   if (mode === "utilitas") {
-    const totalUt = reportData.utilities?.length || 0;
-    const urgenCount = reportData.utilities?.filter((u) => u.urgency === "Segera").length || 0;
-    const selesaiCount = reportData.utilities?.filter((u) => u.status === "Selesai").length || 0;
-    doc.text(`Total Laporan: ${totalUt} Kerusakan`, 20, startY + 6);
-    doc.text(`Urgensi Kritis (Segera): ${urgenCount}`, 75, startY + 6);
-    doc.text(`Penanganan Selesai: ${selesaiCount}`, 135, startY + 6);
+    const totalUtl = reportData.utilities?.length || 0;
+    const segeraUtl = reportData.utilities?.filter((u) => u.urgency === "Segera").length || 0;
+    const selesaiUtl = reportData.utilities?.filter((u) => u.status === "Selesai").length || 0;
+    doc.text(`Total Laporan Utilitas: ${totalUtl} Kasus`, 20, startY + 6);
+    doc.text(`Tingkat Urgensi Segera: ${segeraUtl}`, 80, startY + 6);
+    doc.text(`Telah Diperbaiki / Selesai: ${selesaiUtl}`, 135, startY + 6);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(100, 116, 139);
-    doc.text("Status Sistem Utilitas Puskesmas Terpantau Aktif", 20, startY + 10.5);
+    doc.text("Monitoring Kesiapan Sistem Utilitas Utama Puskesmas", 20, startY + 10.5);
   } else if (mode === "insiden") {
     const totalInc = reportData.incidents?.length || 0;
     const gradingMerah = reportData.incidents?.filter((i) => i.risk_grading === "Merah").length || 0;
@@ -267,15 +320,50 @@ export const downloadMFKReportPDF = ({
     doc.setFont("helvetica", "normal");
     doc.setTextColor(100, 116, 139);
     doc.text("Laporan Investigasi Insiden Keselamatan Pasien & K3", 20, startY + 10.5);
+  } else if (mode === "inventaris_barang" || mode === "inventaris_sarpras") {
+    const invs = (reportData.inventories || []).filter(
+      (i) => i.category === "Sarpras" || i.category === "Barang" || (!i.category?.toUpperCase().includes("B3") && i.category !== "Alkes" && i.category !== "Kalibrasi" && i.category !== "Alat Medis")
+    );
+    const baik = invs.filter((i) => i.condition_status === "Baik").length;
+    const rusak = invs.filter((i) => i.condition_status !== "Baik").length;
+    doc.text(`Total Barang / Sarpras: ${invs.length} Item`, 20, startY + 6);
+    doc.text(`Kondisi Baik: ${baik} Unit`, 80, startY + 6);
+    doc.text(`Perlu Perbaikan / Rusak: ${rusak} Unit`, 135, startY + 6);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 116, 139);
+    doc.text("Rekapitulasi Sarana Prasarana Fisik & Meubelair Ruangan Puskesmas", 20, startY + 10.5);
+  } else if (mode === "inventaris_b3") {
+    const invs = (reportData.inventories || []).filter(
+      (i) => i.category === "B3" || i.category?.toUpperCase().includes("B3")
+    );
+    const msdsCount = invs.filter((i) => i.notes && i.notes.toUpperCase().includes("MSDS")).length;
+    doc.text(`Total Bahan B3: ${invs.length} Macam`, 20, startY + 6);
+    doc.text(`Kelengkapan Dokumen MSDS: ${msdsCount} Item`, 80, startY + 6);
+    doc.text(`Status: Terdata di Lemari B3`, 135, startY + 6);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 116, 139);
+    doc.text("Monitoring Bahan Berbahaya & Beracun (B3) Sesuai Standar MFK 5", 20, startY + 10.5);
+  } else if (mode === "inventaris_alkes") {
+    const invs = (reportData.inventories || []).filter(
+      (i) => i.category === "Alkes" || i.category === "Kalibrasi" || i.category === "Alat Medis"
+    );
+    const terkalibrasi = invs.filter((i) => i.calibration_date).length;
+    const wajibKalibrasi = invs.filter((i) => i.needs_calibration && !i.calibration_date).length;
+    doc.text(`Total Alat Kesehatan: ${invs.length} Unit`, 20, startY + 6);
+    doc.text(`Lulus Kalibrasi: ${terkalibrasi} Unit`, 80, startY + 6);
+    doc.text(`Wajib/Perlu Kalibrasi: ${wajibKalibrasi} Unit`, 135, startY + 6);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 116, 139);
+    doc.text("Rekapitulasi Kelaikan & Sertifikasi Kalibrasi Alat Medis (MFK 8)", 20, startY + 10.5);
   } else if (mode === "inventaris") {
     const invs = reportData.inventories || [];
     const totalInv = invs.length;
-    const totalB3 = invs.filter((i) => i.category === "B3").length;
-    const totalAlkes = invs.filter((i) => i.category === "Alkes" || i.category === "Kalibrasi").length;
-    const totalSarpras = invs.filter((i) => i.category === "Sarpras").length;
-    doc.text(`Total Aset Tercatat: ${totalInv} Item`, 20, startY + 6);
-    doc.text(`Sarpras: ${totalSarpras} | B3 Medis: ${totalB3}`, 75, startY + 6);
-    doc.text(`Alkes / Kalibrasi: ${totalAlkes} Item`, 135, startY + 6);
+    const totalB3 = invs.filter((i) => i.category === "B3" || i.category?.toUpperCase().includes("B3")).length;
+    const totalAlkes = invs.filter((i) => i.category === "Alkes" || i.category === "Kalibrasi" || i.category === "Alat Medis").length;
+    const totalSarpras = invs.filter((i) => i.category === "Sarpras" || i.category === "Barang").length;
+    doc.text(`Total Aset: ${totalInv} Item`, 20, startY + 6);
+    doc.text(`Barang/Sarpras: ${totalSarpras} | B3: ${totalB3}`, 75, startY + 6);
+    doc.text(`Alat Kesehatan: ${totalAlkes} Item`, 135, startY + 6);
     doc.setFont("helvetica", "normal");
     doc.setTextColor(100, 116, 139);
     doc.text("Data Inventarisasi Aktif Sarana, Prasarana, B3 & Alat Kesehatan", 20, startY + 10.5);
@@ -309,7 +397,7 @@ export const downloadMFKReportPDF = ({
       body: tableBody.length ? tableBody : [["-", "-", "-", "Tidak ada laporan kerusakan utilitas pada periode ini", "-", "-", "-", "-"]],
       theme: "grid",
       headStyles: {
-        fillColor: [180, 83, 9], // Amber dark
+        fillColor: [217, 119, 6], // Amber dark
         textColor: [255, 255, 255],
         fontSize: 8,
         fontStyle: "bold",
@@ -323,32 +411,32 @@ export const downloadMFKReportPDF = ({
       },
       columnStyles: {
         0: { cellWidth: 8, halign: "center" },
-        1: { cellWidth: 22 },
-        2: { cellWidth: 25 },
-        3: { cellWidth: 25 },
-        4: { cellWidth: 25 },
-        5: { cellWidth: 47 },
-        6: { cellWidth: 15, halign: "center" },
-        7: { cellWidth: 15, halign: "center" },
+        1: { cellWidth: 23 },
+        2: { cellWidth: 28 },
+        3: { cellWidth: 26 },
+        4: { cellWidth: 28 },
+        5: { cellWidth: 43 },
+        6: { cellWidth: 14, halign: "center" },
+        7: { cellWidth: 14, halign: "center" },
       },
       margin: { left: 14, right: 14 },
     });
   } else if (mode === "insiden") {
     const tableBody = (reportData.incidents || []).map((inc, idx) => [
       idx + 1,
-      inc.report_number || "-",
       formatDate(inc.incident_datetime),
-      inc.location || "-",
-      inc.category || "-",
-      inc.risk_grading || "Biru",
-      `Kronologi: ${inc.chronology || "-"}\n${inc.initial_action ? `Tindakan: ${inc.initial_action}` : ""}`,
-      inc.status || "Selesai",
+      inc.room_name || "-",
+      inc.incident_type || "-",
+      inc.chronology || "-",
+      inc.risk_grading || "-",
+      `${inc.action_taken || "-"}\n${inc.investigation_result ? `Investigasi: ${inc.investigation_result}` : ""}`,
+      inc.status || "Baru",
     ]);
 
     autoTable(doc, {
       startY,
-      head: [["No", "No Laporan", "Waktu", "Lokasi", "Kategori", "Grading", "Kronologi & Tindakan", "Status"]],
-      body: tableBody.length ? tableBody : [["-", "-", "-", "Tidak ada laporan insiden pada periode ini", "-", "-", "-", "-"]],
+      head: [["No", "Waktu Insiden", "Lokasi", "Jenis Insiden", "Kronologi", "Grading", "Tindakan & Investigasi", "Status"]],
+      body: tableBody.length ? tableBody : [["-", "-", "-", "Tidak ada laporan insiden keselamatan pada periode ini", "-", "-", "-", "-"]],
       theme: "grid",
       headStyles: {
         fillColor: [225, 29, 72], // Rose dark
@@ -365,8 +453,8 @@ export const downloadMFKReportPDF = ({
       },
       columnStyles: {
         0: { cellWidth: 8, halign: "center" },
-        1: { cellWidth: 22 },
-        2: { cellWidth: 22 },
+        1: { cellWidth: 23 },
+        2: { cellWidth: 26 },
         3: { cellWidth: 24 },
         4: { cellWidth: 24 },
         5: { cellWidth: 16, halign: "center" },
@@ -375,8 +463,24 @@ export const downloadMFKReportPDF = ({
       },
       margin: { left: 14, right: 14 },
     });
-  } else if (mode === "inventaris") {
-    const tableBody = (reportData.inventories || []).map((inv, idx) => [
+  } else if (isInventarisMode) {
+    let filteredInv = reportData.inventories || [];
+    let headerColor = [30, 64, 175]; // Blue default
+
+    if (mode === "inventaris_barang" || mode === "inventaris_sarpras") {
+      filteredInv = filteredInv.filter(
+        (i) => i.category === "Sarpras" || i.category === "Barang" || (!i.category?.toUpperCase().includes("B3") && i.category !== "Alkes" && i.category !== "Kalibrasi" && i.category !== "Alat Medis")
+      );
+      headerColor = [30, 64, 175]; // Blue
+    } else if (mode === "inventaris_b3") {
+      filteredInv = filteredInv.filter((i) => i.category === "B3" || i.category?.toUpperCase().includes("B3"));
+      headerColor = [126, 34, 206]; // Purple
+    } else if (mode === "inventaris_alkes") {
+      filteredInv = filteredInv.filter((i) => i.category === "Alkes" || i.category === "Kalibrasi" || i.category === "Alat Medis");
+      headerColor = [13, 148, 136]; // Teal
+    }
+
+    const tableBody = filteredInv.map((inv, idx) => [
       idx + 1,
       inv.item_name || "-",
       inv.category || "-",
@@ -387,17 +491,17 @@ export const downloadMFKReportPDF = ({
         ? `Lalu: ${inv.calibration_date}\nNext: ${inv.next_calibration_date || "-"}`
         : inv.needs_calibration
         ? "Wajib Kalibrasi"
-        : "Tidak Perlu",
+        : "-",
       inv.notes || "-",
     ]);
 
     autoTable(doc, {
       startY,
       head: [["No", "Nama Aset / Barang", "Kategori", "Ruangan", "Jumlah", "Kondisi", "Kalibrasi", "Catatan"]],
-      body: tableBody.length ? tableBody : [["-", "-", "-", "Tidak ada data inventarisasi", "-", "-", "-", "-"]],
+      body: tableBody.length ? tableBody : [["-", "-", "-", "Tidak ada data inventarisasi untuk kategori ini", "-", "-", "-", "-"]],
       theme: "grid",
       headStyles: {
-        fillColor: [30, 64, 175], // Blue dark
+        fillColor: headerColor,
         textColor: [255, 255, 255],
         fontSize: 8,
         fontStyle: "bold",
@@ -491,7 +595,7 @@ export const downloadMFKReportPDF = ({
 
   // Tanda tangan & Footer
   const finalY = doc.lastAutoTable?.finalY || startY + 20;
-  drawSignatures(doc, finalY + 8, kopConfig);
+  drawSignatures(doc, finalY + 8, kopConfig, logoDataUrl);
   addPageFooters(doc);
 
   // Simpan dan unduh file PDF

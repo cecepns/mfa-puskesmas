@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Building2,
   User,
@@ -11,12 +11,16 @@ import {
   Sparkles,
   Info,
   Lock,
+  Upload,
+  Image as ImageIcon,
+  Trash2,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { request } from "../utils/request";
 import { API_ENDPOINTS } from "../utils/endpoints";
 import toast from "react-hot-toast";
 import { DEFAULT_KOP_CONFIG } from "../utils/pdfGenerator";
+import defaultLogoPuskesmas from "../assets/logo-puskesmas.png";
 
 export default function Pengaturan() {
   const { user } = useAuth();
@@ -25,6 +29,7 @@ export default function Pengaturan() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [config, setConfig] = useState(DEFAULT_KOP_CONFIG);
+  const fileInputRef = useRef(null);
 
   const fetchSettings = async () => {
     setLoading(true);
@@ -48,6 +53,53 @@ export default function Pengaturan() {
     setConfig((prev) => ({ ...prev, [field]: value }));
   };
 
+  // Handle Logo Upload & Convert to clean base64 data URL
+  const handleLogoUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Format file harus berupa gambar (PNG, JPG, atau JPEG)");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        // Resize / compress inside canvas to max 400x400 to keep base64 lightweight (~25-40KB)
+        const canvas = document.createElement("canvas");
+        const maxDim = 400;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+        }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL("image/png");
+        handleChange("logoUrl", dataUrl);
+        toast.success("Logo KOP berhasil dimuat! Klik 'Simpan Pengaturan' untuk menyimpan ke database.");
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleResetLogo = () => {
+    handleChange("logoUrl", null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    toast("Logo KOP dikembalikan ke logo default Puskesmas.");
+  };
+
   const handleSave = async (e) => {
     e?.preventDefault();
     setSaving(true);
@@ -57,7 +109,7 @@ export default function Pengaturan() {
       try {
         localStorage.setItem("mfk_kop_config", JSON.stringify(config));
       } catch {}
-      toast.success("Pengaturan KOP & Pimpinan berhasil disimpan ke database!");
+      toast.success("Pengaturan KOP, Logo & Pimpinan berhasil disimpan ke database!");
     } catch (err) {
       toast.error(err.response?.data?.message || "Gagal menyimpan pengaturan ke database");
     } finally {
@@ -66,8 +118,9 @@ export default function Pengaturan() {
   };
 
   const handleReset = () => {
-    if (window.confirm("Kembalikan seluruh teks KOP dan Pejabat ke setelan awal Puskesmas?")) {
+    if (window.confirm("Kembalikan seluruh teks KOP, Logo dan Pejabat ke setelan awal Puskesmas?")) {
       setConfig(DEFAULT_KOP_CONFIG);
+      if (fileInputRef.current) fileInputRef.current.value = "";
       toast("Pengaturan dikembalikan ke format default, klik 'Simpan Perubahan' untuk memperbarui database.");
     }
   };
@@ -97,6 +150,8 @@ export default function Pengaturan() {
     );
   }
 
+  const activeLogo = config.logoUrl || defaultLogoPuskesmas;
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
       {/* Header */}
@@ -111,7 +166,7 @@ export default function Pengaturan() {
             </span>
           </div>
           <p className="text-sm text-slate-500 mt-1">
-            Konfigurasi identitas resmi Puskesmas, KOP surat laporan akreditasi, serta nama Kepala Puskesmas dan Penanggung Jawab MFK.
+            Konfigurasi identitas resmi Puskesmas, logo KOP surat laporan akreditasi, serta nama Kepala Puskesmas dan Penanggung Jawab MFK.
           </p>
         </div>
 
@@ -140,6 +195,73 @@ export default function Pengaturan() {
         {/* Left Column: Form Fields (7 cols) */}
         <div className="lg:col-span-7 space-y-6">
           <form onSubmit={handleSave} className="space-y-6">
+            {/* CARD LOGO KOP SURAT */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+              <div className="p-4 sm:p-5 border-b border-slate-100 bg-slate-50/70 flex items-center gap-2.5">
+                <div className="p-2 bg-emerald-100 text-emerald-700 rounded-xl">
+                  <ImageIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-sm">
+                    Logo Resmi Instansi / Puskesmas (KOP Surat)
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Akan dicetak di sudut kiri KOP Surat pada dokumen PDF, lembar pengesahan, dan print out
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-5 sm:p-6 space-y-4">
+                <div className="flex flex-col sm:flex-row items-center gap-5">
+                  <div className="w-24 h-24 rounded-2xl bg-slate-50 border-2 border-dashed border-slate-300 p-2 flex items-center justify-center shrink-0 shadow-inner">
+                    <img
+                      src={activeLogo}
+                      alt="Logo KOP Surat"
+                      className="w-full h-full object-contain"
+                    />
+                  </div>
+                  <div className="space-y-2 text-center sm:text-left flex-1">
+                    <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                      <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleLogoUpload}
+                        accept="image/png, image/jpeg, image/jpg"
+                        className="hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-xs transition cursor-pointer"
+                      >
+                        <Upload className="w-3.5 h-3.5" />
+                        <span>{config.logoUrl ? "Ganti Logo KOP" : "Upload Logo Baru"}</span>
+                      </button>
+                      {config.logoUrl && (
+                        <button
+                          type="button"
+                          onClick={handleResetLogo}
+                          className="inline-flex items-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 border border-slate-200 text-slate-600 rounded-xl text-xs font-semibold transition cursor-pointer"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5 text-slate-400" />
+                          <span>Gunakan Logo Default</span>
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      {config.logoUrl ? (
+                        <span className="text-emerald-700 font-medium">✓ Menggunakan logo kustom yang diunggah.</span>
+                      ) : (
+                        <span>Menggunakan logo default: <b className="text-slate-700">logo-puskesmas.png</b> (Kemenkes RI).</span>
+                      )}
+                      <br />
+                      Format: PNG / JPG transparan. Logo otomatis diposisikan proporsional di kiri KOP surat.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             {/* CARD 1: KOP SURAT RESMI */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
               <div className="p-4 sm:p-5 border-b border-slate-100 bg-slate-50/70 flex items-center gap-2.5">
@@ -148,7 +270,7 @@ export default function Pengaturan() {
                 </div>
                 <div>
                   <h3 className="font-bold text-slate-800 text-sm">
-                    KOP Surat Resmi & Identitas Instansi
+                    Teks KOP Surat Resmi & Identitas Instansi
                   </h3>
                   <p className="text-xs text-slate-500">
                     Akan tercetak di bagian atas setiap PDF Laporan Periodik dan Print Out
@@ -192,7 +314,7 @@ export default function Pengaturan() {
                     type="text"
                     value={config.namaPuskesmas || ""}
                     onChange={(e) => handleChange("namaPuskesmas", e.target.value)}
-                    placeholder="Contoh: UPTD PUSKESMAS CIBINONG"
+                    placeholder="Contoh: UPTD PUSKESMAS MUARA KULAM"
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-bold text-emerald-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
@@ -218,7 +340,7 @@ export default function Pengaturan() {
                       type="text"
                       value={config.kotaDokumen || ""}
                       onChange={(e) => handleChange("kotaDokumen", e.target.value)}
-                      placeholder="Contoh: Cibinong"
+                      placeholder="Contoh: Muara Kulam"
                       className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
                     />
                   </div>
@@ -377,21 +499,32 @@ export default function Pengaturan() {
 
             {/* Document Preview Box */}
             <div className="bg-white rounded-2xl border-2 border-slate-200 p-6 shadow-md space-y-6">
-              {/* KOP Surat Preview */}
-              <div className="text-center space-y-1 pb-3 border-b-2 border-slate-800">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
-                  {config.instansiInduk || "PEMERINTAH KABUPATEN / KOTA"}
-                </p>
-                <p className="text-xs font-extrabold uppercase tracking-wide text-slate-800">
-                  {config.dinasKesehatan || "DINAS KESEHATAN"}
-                </p>
-                <h4 className="text-base font-black uppercase text-emerald-700 tracking-wide">
-                  {config.namaPuskesmas || "UPTD PUSKESMAS"}
-                </h4>
-                <p className="text-[9px] text-slate-500 leading-tight">
-                  {config.alamatKontak || "Jl. Kesehatan No. 01"}
-                </p>
-                <div className="mt-2 pt-1 border-t border-slate-300">
+              {/* KOP Surat Preview with Logo on Left */}
+              <div className="pb-3 border-b-2 border-slate-800">
+                <div className="flex items-center gap-3">
+                  <div className="w-14 h-14 shrink-0 flex items-center justify-center">
+                    <img
+                      src={activeLogo}
+                      alt="Logo Puskesmas"
+                      className="w-full h-full object-contain drop-shadow-2xs"
+                    />
+                  </div>
+                  <div className="flex-1 text-center space-y-0.5">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-slate-600">
+                      {config.instansiInduk || "PEMERINTAH KABUPATEN / KOTA"}
+                    </p>
+                    <p className="text-xs font-extrabold uppercase tracking-wide text-slate-800">
+                      {config.dinasKesehatan || "DINAS KESEHATAN"}
+                    </p>
+                    <h4 className="text-sm font-black uppercase text-emerald-700 tracking-wide">
+                      {config.namaPuskesmas || "UPTD PUSKESMAS"}
+                    </h4>
+                    <p className="text-[8.5px] text-slate-500 leading-tight">
+                      {config.alamatKontak || "Jl. Kesehatan No. 01"}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-2 pt-1 border-t border-slate-300 text-center">
                   <p className="text-[10px] font-bold text-slate-900 uppercase">
                     LAPORAN PROGRAM MANAJEMEN FASILITAS DAN KESELAMATAN (MFK)
                   </p>
@@ -450,7 +583,7 @@ export default function Pengaturan() {
             <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-900 flex items-start gap-2.5">
               <Info className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
               <div>
-                <b>Tersinkronisasi Otomatis:</b> Setiap kali Anda menyimpan pengaturan ini, data tersimpan di tabel <code className="bg-emerald-100 px-1 py-0.5 rounded text-[11px] font-mono">app_settings</code> MySQL dan secara otomatis diterapkan saat mencetak PDF gabungan, download per inspeksi, cetak via browser, maupun export CSV Excel.
+                <b>Tersinkronisasi Otomatis:</b> Setiap kali Anda menyimpan pengaturan ini, logo dan data instansi tersimpan di tabel <code className="bg-emerald-100 px-1 py-0.5 rounded text-[11px] font-mono">app_settings</code> MySQL dan secara otomatis dicetak pada PDF laporan gabungan, per inspeksi, per modul inventaris (Barang, B3, Alkes), serta print preview.
               </div>
             </div>
           </div>

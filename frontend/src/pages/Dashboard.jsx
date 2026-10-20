@@ -168,8 +168,13 @@ export default function Dashboard() {
                   <td className="px-4 py-3.5 text-center text-xs text-slate-400 font-medium">
                     {idx + 1}
                   </td>
-                  <td className="px-4 py-3.5 font-semibold text-slate-900">
-                    {room.name}
+                  <td className="px-4 py-3.5">
+                    <div className="font-semibold text-slate-900">{room.name}</div>
+                    {room.damage_description && (
+                      <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-0.5 mt-1 inline-block">
+                        Kerusakan: {room.damage_description}
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3.5 text-xs text-slate-600">
                     <span className="px-2.5 py-1 bg-slate-100 text-slate-700 rounded-md font-medium">
