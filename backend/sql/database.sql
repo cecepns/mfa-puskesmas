@@ -8,6 +8,7 @@ CREATE TABLE rooms (
   pic_name VARCHAR(100) DEFAULT 'PJ Ruangan',
   pic_user_id INT NULL,
   condition_status ENUM('Baik', 'Perlu Perbaikan', 'Rusak Berat') DEFAULT 'Baik',
+  record_date DATE NULL,
   damage_description TEXT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );

@@ -173,7 +173,8 @@ export default function PengaduanAdmin() {
   };
 
   const getTargetUrl = () => {
-    let url = `${barcodeBaseUrl}/pengaduan`;
+    const base = (barcodeBaseUrl || "").trim().replace(/\/+$/, "");
+    let url = `${base}/pengaduan`;
     if (barcodeRoomId) {
       url += `?room_id=${barcodeRoomId}`;
     }
@@ -525,7 +526,7 @@ export default function PengaduanAdmin() {
         title={`Tindak Lanjut Pengaduan: ${detailItem?.ticket_number}`}
       >
         {detailItem && (
-          <form onSubmit={handleSaveFollowup} className="space-y-4 text-sm max-h-[75vh] overflow-y-auto pr-1">
+          <form onSubmit={handleSaveFollowup} className="space-y-4 text-sm">
             <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
               <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                 <div>

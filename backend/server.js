@@ -56,6 +56,15 @@ const initDatabaseSchema = async () => {
       // Ignored if already exists
     }
 
+    // 2. Ensure record_date in rooms for backdate
+    try {
+      await pool.query("ALTER TABLE rooms ADD COLUMN record_date DATE NULL AFTER condition_status");
+      await pool.query("UPDATE rooms SET record_date = DATE(created_at) WHERE record_date IS NULL");
+      console.log("Column record_date added to rooms table");
+    } catch (err) {
+      // Ignored if already exists
+    }
+
     // 2. Ensure public_feedbacks table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS public_feedbacks (
@@ -143,19 +152,29 @@ app.get("/api/rooms", async (req, res) => {
     const search = (req.query.search || "").trim();
     const category = req.query.category || "";
     const condition = req.query.condition || "";
+    const month = req.query.month || "";
+    const year = req.query.year || "";
     let whereClauses = ["1=1"];
     let params = [];
 
     if (category && category !== "Semua") {
-      whereClauses.push("category = ?");
+      whereClauses.push("r.category = ?");
       params.push(category);
     }
     if (condition && condition !== "Semua") {
-      whereClauses.push("condition_status = ?");
+      whereClauses.push("r.condition_status = ?");
       params.push(condition);
     }
+    if (month && month !== "Semua") {
+      whereClauses.push("MONTH(COALESCE(r.record_date, r.created_at)) = ?");
+      params.push(parseInt(month));
+    }
+    if (year && year !== "Semua") {
+      whereClauses.push("YEAR(COALESCE(r.record_date, r.created_at)) = ?");
+      params.push(parseInt(year));
+    }
     if (search) {
-      whereClauses.push("(name LIKE ? OR pic_name LIKE ?)");
+      whereClauses.push("(r.name LIKE ? OR r.pic_name LIKE ?)");
       params.push(`%${search}%`, `%${search}%`);
     }
 
@@ -163,7 +182,7 @@ app.get("/api/rooms", async (req, res) => {
 
     if (req.query.page) {
       const { page, limit, offset } = getPaginationParams(req.query);
-      const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM rooms WHERE ${whereSql}`, params);
+      const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM rooms r WHERE ${whereSql}`, params);
       const [rows] = await pool.query(
         `SELECT r.*, 
           (SELECT COUNT(*) FROM inventories WHERE room_id = r.id) AS total_inventaris,
@@ -171,14 +190,14 @@ app.get("/api/rooms", async (req, res) => {
           (SELECT COUNT(*) FROM utility_reports WHERE room_id = r.id) AS total_kerusakan
          FROM rooms r 
          WHERE ${whereSql} 
-         ORDER BY r.id ASC 
+         ORDER BY COALESCE(r.record_date, DATE(r.created_at)) DESC, r.id ASC 
          LIMIT ? OFFSET ?`,
         [...params, limit, offset]
       );
       return formatPaginatedResponse(res, rows, page, limit, total);
     }
 
-    const [rows] = await pool.query(`SELECT * FROM rooms WHERE ${whereSql} ORDER BY id ASC`, params);
+    const [rows] = await pool.query(`SELECT r.* FROM rooms r WHERE ${whereSql} ORDER BY COALESCE(r.record_date, DATE(r.created_at)) DESC, r.id ASC`, params);
     res.json({ success: true, data: rows });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -187,19 +206,22 @@ app.get("/api/rooms", async (req, res) => {
 
 app.post("/api/rooms", async (req, res) => {
   try {
-    const { name, category, pic_name, pic_user_id, condition_status, damage_description } = req.body;
+    const { name, category, pic_name, pic_user_id, condition_status, damage_description, record_date } = req.body;
     if (!name || !category) {
       return res.status(400).json({ success: false, message: "Nama ruangan dan kategori wajib diisi" });
     }
 
+    const cleanRecordDate = record_date ? record_date.slice(0, 10) : new Date().toISOString().slice(0, 10);
+
     const [result] = await pool.query(
-      `INSERT INTO rooms (name, category, pic_name, pic_user_id, condition_status, damage_description) VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO rooms (name, category, pic_name, pic_user_id, condition_status, record_date, damage_description) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
         name.trim(),
         category,
         pic_name ? pic_name.trim() : "PJ Ruangan",
         pic_user_id ? parseInt(pic_user_id) : null,
         condition_status || "Baik",
+        cleanRecordDate,
         damage_description ? damage_description.trim() : null,
       ]
     );
@@ -212,7 +234,7 @@ app.post("/api/rooms", async (req, res) => {
 
 app.put("/api/rooms/:id", async (req, res) => {
   try {
-    const { name, category, pic_name, pic_user_id, condition_status, damage_description } = req.body;
+    const { name, category, pic_name, pic_user_id, condition_status, damage_description, record_date } = req.body;
     const roomId = req.params.id;
 
     const [existing] = await pool.query("SELECT id FROM rooms WHERE id = ?", [roomId]);
@@ -220,14 +242,17 @@ app.put("/api/rooms/:id", async (req, res) => {
       return res.status(404).json({ success: false, message: "Ruangan tidak ditemukan" });
     }
 
+    const cleanRecordDate = record_date ? record_date.slice(0, 10) : null;
+
     await pool.query(
-      `UPDATE rooms SET name = ?, category = ?, pic_name = ?, pic_user_id = ?, condition_status = ?, damage_description = ? WHERE id = ?`,
+      `UPDATE rooms SET name = ?, category = ?, pic_name = ?, pic_user_id = ?, condition_status = ?, record_date = COALESCE(?, record_date, DATE(created_at)), damage_description = ? WHERE id = ?`,
       [
         name.trim(),
         category,
         pic_name ? pic_name.trim() : "PJ Ruangan",
         pic_user_id ? parseInt(pic_user_id) : null,
         condition_status || "Baik",
+        cleanRecordDate,
         damage_description ? damage_description.trim() : null,
         roomId,
       ]

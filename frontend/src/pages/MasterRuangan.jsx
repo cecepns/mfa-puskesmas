@@ -17,6 +17,7 @@ import {
   Sparkles,
   RefreshCw,
   AlertTriangle,
+  Calendar,
 } from "lucide-react";
 import { request } from "../utils/request";
 import { API_ENDPOINTS } from "../utils/endpoints";
@@ -30,6 +31,24 @@ const CATEGORY_OPTIONS = [
   { value: "Area_Umum", label: "Area Umum & Penunjang", color: "bg-amber-50 text-amber-700 border-amber-200" },
 ];
 
+const MONTHS = [
+  { value: "Semua", label: "Semua Bulan" },
+  { value: "1", label: "Januari" },
+  { value: "2", label: "Februari" },
+  { value: "3", label: "Maret" },
+  { value: "4", label: "April" },
+  { value: "5", label: "Mei" },
+  { value: "6", label: "Juni" },
+  { value: "7", label: "Juli" },
+  { value: "8", label: "Agustus" },
+  { value: "9", label: "September" },
+  { value: "10", label: "Oktober" },
+  { value: "11", label: "November" },
+  { value: "12", label: "Desember" },
+];
+
+const YEARS = ["Semua", "2023", "2024", "2025", "2026", "2027", "2028"];
+
 export default function MasterRuangan() {
   const [rooms, setRooms] = useState([]);
   const [users, setUsers] = useState([]);
@@ -37,6 +56,8 @@ export default function MasterRuangan() {
   const debouncedSearch = useDebounce(search, 300);
   const [selectedCategory, setSelectedCategory] = useState("Semua");
   const [selectedCondition, setSelectedCondition] = useState("Semua");
+  const [selectedMonth, setSelectedMonth] = useState("Semua");
+  const [selectedYear, setSelectedYear] = useState("Semua");
   const [pagination, setPagination] = useState({ page: 1, limit: 10, total: 0, totalPages: 1 });
   const [loading, setLoading] = useState(false);
 
@@ -51,6 +72,7 @@ export default function MasterRuangan() {
   const initialForm = {
     name: "",
     category: "Klaster_Ruangan",
+    record_date: new Date().toISOString().slice(0, 10),
     pic_name: "",
     pic_user_id: "",
     condition_status: "Baik",
@@ -67,6 +89,8 @@ export default function MasterRuangan() {
         search: debouncedSearch,
         category: selectedCategory === "Semua" ? "" : selectedCategory,
         condition: selectedCondition === "Semua" ? "" : selectedCondition,
+        month: selectedMonth === "Semua" ? "" : selectedMonth,
+        year: selectedYear === "Semua" ? "" : selectedYear,
       });
 
       setRooms(res.data || []);
@@ -110,11 +134,22 @@ export default function MasterRuangan() {
 
   useEffect(() => {
     fetchRooms();
-  }, [selectedCategory, selectedCondition, pagination.page, pagination.limit, debouncedSearch]);
+  }, [
+    selectedCategory,
+    selectedCondition,
+    selectedMonth,
+    selectedYear,
+    pagination.page,
+    pagination.limit,
+    debouncedSearch,
+  ]);
 
   const handleOpenCreate = () => {
     setEditingRoom(null);
-    setForm(initialForm);
+    setForm({
+      ...initialForm,
+      record_date: new Date().toISOString().slice(0, 10),
+    });
     setIsModalOpen(true);
   };
 
@@ -123,6 +158,11 @@ export default function MasterRuangan() {
     setForm({
       name: room.name,
       category: room.category,
+      record_date: room.record_date
+        ? room.record_date.slice(0, 10)
+        : room.created_at
+        ? room.created_at.slice(0, 10)
+        : new Date().toISOString().slice(0, 10),
       pic_name: room.pic_name || "",
       pic_user_id: room.pic_user_id || "",
       condition_status: room.condition_status || "Baik",
@@ -376,10 +416,44 @@ export default function MasterRuangan() {
               <option value="Rusak Berat">Kondisi: Rusak Berat</option>
             </select>
 
+            {/* Filter Bulan Backdate */}
+            <select
+              value={selectedMonth}
+              onChange={(e) => {
+                setSelectedMonth(e.target.value);
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              {MONTHS.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+
+            {/* Filter Tahun Backdate */}
+            <select
+              value={selectedYear}
+              onChange={(e) => {
+                setSelectedYear(e.target.value);
+                setPagination((p) => ({ ...p, page: 1 }));
+              }}
+              className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              {YEARS.map((y) => (
+                <option key={y} value={y}>
+                  {y === "Semua" ? "Semua Tahun" : `Tahun ${y}`}
+                </option>
+              ))}
+            </select>
+
             <button
               onClick={() => {
                 setSelectedCategory("Semua");
                 setSelectedCondition("Semua");
+                setSelectedMonth("Semua");
+                setSelectedYear("Semua");
                 setSearch("");
               }}
               className="p-2 text-slate-500 hover:text-slate-800 bg-white border border-slate-200 rounded-xl text-xs font-medium hover:bg-slate-100 transition cursor-pointer"
@@ -409,6 +483,12 @@ export default function MasterRuangan() {
                     <span>Penanggung Jawab (PJ)</span>
                   </div>
                 </th>
+                <th className="px-4 py-3.5 w-32 whitespace-nowrap">
+                  <div className="flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Tgl Pendataan</span>
+                  </div>
+                </th>
                 <th className="px-5 py-3.5 w-36 text-center whitespace-nowrap">Status Kondisi</th>
                 <th className="px-5 py-3.5 w-24 text-right">Aksi</th>
               </tr>
@@ -416,13 +496,13 @@ export default function MasterRuangan() {
             <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
               {loading ? (
                 <tr>
-                  <td colSpan="6" className="px-5 py-8 text-center text-slate-400">
+                  <td colSpan="7" className="px-5 py-8 text-center text-slate-400">
                     Memuat data ruangan...
                   </td>
                 </tr>
               ) : rooms.length === 0 ? (
                 <tr>
-                  <td colSpan="6" className="px-5 py-8 text-center text-slate-400">
+                  <td colSpan="7" className="px-5 py-8 text-center text-slate-400">
                     Tidak ada ruangan yang sesuai filter.
                   </td>
                 </tr>
@@ -491,6 +571,18 @@ export default function MasterRuangan() {
                         <span>{room.pic_name || "Belum Ditentukan"}</span>
                       </div>
                     </td>
+                    <td className="px-4 py-4 whitespace-nowrap text-xs text-slate-600 font-medium">
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 border border-slate-200">
+                        <Calendar className="w-3 h-3 text-emerald-600" />
+                        <span>
+                          {new Date(room.record_date || room.created_at || new Date()).toLocaleDateString("id-ID", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
+                          })}
+                        </span>
+                      </div>
+                    </td>
                     <td className="px-5 py-4 text-center whitespace-nowrap">
                       {getConditionBadge(room.condition_status)}
                     </td>
@@ -548,6 +640,29 @@ export default function MasterRuangan() {
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               className="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none"
             />
+          </div>
+
+          {/* Tanggal Pendataan / Pemantauan Ruangan (Backdate) */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider">
+                Tanggal Pendataan / Pemantauan Ruangan *
+              </label>
+              <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                <Calendar className="w-3 h-3 text-emerald-600" />
+                Bisa Pilih Bulan / Tahun Berlalu
+              </span>
+            </div>
+            <input
+              type="date"
+              required
+              value={form.record_date}
+              onChange={(e) => setForm({ ...form, record_date: e.target.value })}
+              className="w-full border border-slate-300 rounded-xl px-3.5 py-2 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white font-medium text-slate-800 cursor-pointer"
+            />
+            <p className="text-[11px] text-slate-400 mt-1">
+              Atur tanggal pendataan ruangan atau pemantauan kondisi. Mendukung pengisian tanggal mundur (backdate) dari bulan atau tahun sebelumnya.
+            </p>
           </div>
 
           <div>

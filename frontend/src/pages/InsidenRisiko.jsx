@@ -273,7 +273,7 @@ export default function InsidenRisiko() {
         onClose={() => setIsModalOpen(false)}
         title="Formulir Laporan Insiden Keselamatan (K3 & MFK)"
       >
-        <form onSubmit={handleSubmit} className="space-y-4 text-sm max-h-[75vh] overflow-y-auto pr-1">
+        <form onSubmit={handleSubmit} className="space-y-4 text-sm">
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
               Kategori Insiden *
@@ -455,7 +455,7 @@ export default function InsidenRisiko() {
         title={`Detail Insiden: ${detailItem?.report_number}`}
       >
         {detailItem && (
-          <div className="space-y-4 text-sm max-h-[75vh] overflow-y-auto pr-1">
+          <div className="space-y-4 text-sm">
             <div className="grid grid-cols-2 gap-3 p-3 bg-slate-50 rounded-xl border border-slate-200">
               <div>
                 <p className="text-xs text-slate-400">Nomor Registrasi</p>
