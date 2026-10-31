@@ -708,7 +708,7 @@ export default function FasilitasUtilitas() {
         onClose={() => setIsModalOpen(false)}
         title={mode === "inspeksi" ? "Input Hasil Inspeksi Fasilitas" : "Lapor Kerusakan Sistem Utilitas"}
       >
-        <form onSubmit={handleSave} className="space-y-4 text-sm max-h-[75vh] overflow-y-auto pr-1">
+        <form onSubmit={handleSave} className="space-y-4 text-sm">
           {mode === "inspeksi" ? (
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
