@@ -17,6 +17,7 @@ export const API_ENDPOINTS = {
     LIST: "/inventories",
     CREATE: "/inventories",
     UPDATE: (id) => `/inventories/${id}`,
+    UPDATE_STOCK: (id) => `/inventories/${id}/stock`,
     DELETE: (id) => `/inventories/${id}`,
   },
   INSPECTIONS: {
@@ -49,6 +50,15 @@ export const API_ENDPOINTS = {
   SETTINGS: {
     GET: "/settings",
     UPDATE: "/settings",
+  },
+  FEEDBACKS: {
+    PUBLIC_INFO: "/public/info",
+    PUBLIC_ROOMS: "/public/rooms",
+    PUBLIC_SUBMIT: "/public/feedback",
+    LIST: "/feedbacks",
+    STATS: "/feedbacks/stats",
+    UPDATE: (id) => `/feedbacks/${id}`,
+    DELETE: (id) => `/feedbacks/${id}`,
   },
 };
 

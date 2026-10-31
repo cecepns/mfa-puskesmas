@@ -76,9 +76,15 @@ export default function FasilitasUtilitas() {
     kerusakanUrgen: 0,
   });
 
+  const getLocalDatetimeString = (date = new Date()) => {
+    const d = new Date(date);
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  };
+
   const [inspectionForm, setInspectionForm] = useState({
     inspection_type: INSPECTION_TYPES[0],
-    inspection_datetime: new Date().toISOString().slice(0, 16),
+    inspection_datetime: getLocalDatetimeString(),
     officer_name: "",
     work_unit: "",
     room_id: "",
@@ -92,7 +98,7 @@ export default function FasilitasUtilitas() {
   });
 
   const [utilityForm, setUtilityForm] = useState({
-    report_datetime: new Date().toISOString().slice(0, 16),
+    report_datetime: getLocalDatetimeString(),
     officer_name: "",
     work_unit: "",
     room_id: "",
@@ -472,7 +478,22 @@ export default function FasilitasUtilitas() {
             </select>
 
             <button
-              onClick={() => setIsModalOpen(true)}
+              onClick={() => {
+                if (mode === "inspeksi") {
+                  setInspectionForm((prev) => ({
+                    ...prev,
+                    inspection_datetime: prev.inspection_datetime || getLocalDatetimeString(),
+                    room_id: prev.room_id || rooms[0]?.id || "",
+                  }));
+                } else {
+                  setUtilityForm((prev) => ({
+                    ...prev,
+                    report_datetime: prev.report_datetime || getLocalDatetimeString(),
+                    room_id: prev.room_id || rooms[0]?.id || "",
+                  }));
+                }
+                setIsModalOpen(true);
+              }}
               className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs rounded-xl shadow-sm transition cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -719,6 +740,37 @@ export default function FasilitasUtilitas() {
               </select>
             </div>
           )}
+
+          {/* Kalender Pemilihan Tanggal & Waktu (Mendukung Backdate) */}
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1 flex items-center justify-between">
+              <span className="flex items-center gap-1.5">
+                <Calendar className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Tanggal & Waktu {mode === "inspeksi" ? "Inspeksi / Pemeriksaan" : "Pelaporan Kerusakan"} *</span>
+              </span>
+              <span className="text-[11px] text-emerald-700 font-medium normal-case bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
+                Bisa Pilih Bulan / Tahun Berlalu
+              </span>
+            </label>
+            <div className="relative">
+              <input
+                type="datetime-local"
+                required
+                value={mode === "inspeksi" ? inspectionForm.inspection_datetime : utilityForm.report_datetime}
+                onChange={(e) =>
+                  mode === "inspeksi"
+                    ? setInspectionForm({ ...inspectionForm, inspection_datetime: e.target.value })
+                    : setUtilityForm({ ...utilityForm, report_datetime: e.target.value })
+                }
+                className="w-full border border-slate-300 rounded-xl p-2.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white font-medium text-slate-800"
+              />
+            </div>
+            <p className="text-[11px] text-slate-500 mt-1">
+              {mode === "inspeksi"
+                ? "Atur tanggal dan jam pemeriksaan sarana/kebersihan fasilitas. Mendukung pengisian mundur (backdate) dari Januari atau bulan-bulan sebelumnya."
+                : "Atur tanggal dan jam laporan kerusakan utilitas. Dapat dimundurkan sesuai riwayat temuan terdahulu."}
+            </p>
+          </div>
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">

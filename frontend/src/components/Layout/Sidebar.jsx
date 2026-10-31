@@ -13,6 +13,7 @@ import {
   Shield,
   UserCheck,
   Settings,
+  QrCode,
 } from "lucide-react";
 import { useAuth } from "../../context/AuthContext";
 import logoImg from "../../assets/logo.png";
@@ -24,8 +25,9 @@ const menus = [
   { name: "04. Fasilitas & Utilitas", path: "/fasilitas-utilitas", icon: ShieldCheck },
   { name: "05. Insiden & Risiko", path: "/insiden-risiko", icon: AlertTriangle },
   { name: "06. Laporan Periodik", path: "/laporan-periodik", icon: FileSpreadsheet },
-  { name: "07. Manajemen User", path: "/users", icon: Users },
-  { name: "08. Pengaturan KOP & Sistem", path: "/pengaturan", icon: Settings },
+  { name: "07. Pengaduan & Barcode", path: "/pengaduan-admin", icon: QrCode },
+  { name: "08. Manajemen User", path: "/users", icon: Users },
+  { name: "09. Pengaturan KOP & Sistem", path: "/pengaturan", icon: Settings },
 ];
 
 export default function Sidebar({ isOpen, setIsOpen }) {

@@ -40,6 +40,7 @@ CREATE TABLE inventories (
   room_id INT NOT NULL,
   item_name VARCHAR(150) NOT NULL,
   quantity INT DEFAULT 1,
+  stock_date DATE NULL,
   unit VARCHAR(50) DEFAULT 'Unit',
   condition_status ENUM('Baik', 'Rusak Ringan', 'Rusak Berat') DEFAULT 'Baik',
   needs_calibration BOOLEAN DEFAULT FALSE,
@@ -220,3 +221,24 @@ SELECT
   'Administrator MFK / Tim Sanitasi',
   'Koordinator Fasilitas & Keselamatan'
 WHERE NOT EXISTS (SELECT 1 FROM app_settings);
+
+CREATE TABLE IF NOT EXISTS public_feedbacks (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  ticket_number VARCHAR(50) UNIQUE NOT NULL,
+  category ENUM('Kualitas Pelayanan', 'Petugas', 'Sarana dan Prasarana', 'Kebersihan & Sanitasi', 'Lainnya') NOT NULL DEFAULT 'Sarana dan Prasarana',
+  rating_pelayanan INT DEFAULT 5,
+  rating_petugas INT DEFAULT 5,
+  rating_sarpras INT DEFAULT 5,
+  overall_rating INT DEFAULT 5,
+  room_id INT NULL,
+  room_name VARCHAR(150) NULL,
+  visitor_name VARCHAR(100) NULL,
+  visitor_phone VARCHAR(30) NULL,
+  complaint_text TEXT NOT NULL,
+  photo_url VARCHAR(255) NULL,
+  status ENUM('Menunggu', 'Diproses', 'Selesai') DEFAULT 'Menunggu',
+  admin_response TEXT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE SET NULL
+);
+

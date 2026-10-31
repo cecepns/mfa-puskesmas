@@ -36,6 +36,55 @@ const pool = mysql.createPool({
   connectionLimit: 10,
 });
 
+const cleanDatetime = (dt) => {
+  if (!dt) return new Date();
+  if (typeof dt === "string") {
+    // Convert YYYY-MM-DDTHH:mm to YYYY-MM-DD HH:mm:00
+    const str = dt.replace("T", " ");
+    return str.length === 16 ? `${str}:00` : str.slice(0, 19);
+  }
+  return dt;
+};
+
+const initDatabaseSchema = async () => {
+  try {
+    // 1. Ensure stock_date in inventories
+    try {
+      await pool.query("ALTER TABLE inventories ADD COLUMN stock_date DATE NULL AFTER quantity");
+      console.log("Column stock_date added to inventories table");
+    } catch (err) {
+      // Ignored if already exists
+    }
+
+    // 2. Ensure public_feedbacks table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS public_feedbacks (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        ticket_number VARCHAR(50) UNIQUE NOT NULL,
+        category VARCHAR(100) NOT NULL DEFAULT 'Sarana dan Prasarana',
+        rating_pelayanan INT DEFAULT 5,
+        rating_petugas INT DEFAULT 5,
+        rating_sarpras INT DEFAULT 5,
+        overall_rating INT DEFAULT 5,
+        room_id INT NULL,
+        room_name VARCHAR(150) NULL,
+        visitor_name VARCHAR(100) NULL,
+        visitor_phone VARCHAR(30) NULL,
+        complaint_text TEXT NOT NULL,
+        photo_url VARCHAR(255) NULL,
+        status ENUM('Menunggu', 'Diproses', 'Selesai') DEFAULT 'Menunggu',
+        admin_response TEXT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE SET NULL
+      )
+    `);
+    console.log("Database schema initialization check completed.");
+  } catch (err) {
+    console.warn("Database schema init notice:", err.message);
+  }
+};
+initDatabaseSchema();
+
 const getPaginationParams = (query) => {
   const page = Math.max(1, parseInt(query.page) || 1);
   const limit = [10, 25, 50, 100].includes(parseInt(query.limit)) ? parseInt(query.limit) : 10;
@@ -252,10 +301,10 @@ app.get("/api/inventories", async (req, res) => {
 
 app.post("/api/inventories", async (req, res) => {
   try {
-    const { category, room_id, item_name, quantity, unit, condition_status, needs_calibration, calibration_date, next_calibration_date, calibration_institution, notes } = req.body;
+    const { category, room_id, item_name, quantity, stock_date, unit, condition_status, needs_calibration, calibration_date, next_calibration_date, calibration_institution, notes } = req.body;
     const [result] = await pool.query(
-      `INSERT INTO inventories (category, room_id, item_name, quantity, unit, condition_status, needs_calibration, calibration_date, next_calibration_date, calibration_institution, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [category, room_id, item_name, quantity || 1, unit || "Unit", condition_status || "Baik", needs_calibration ? 1 : 0, calibration_date || null, next_calibration_date || null, calibration_institution || null, notes || ""]
+      `INSERT INTO inventories (category, room_id, item_name, quantity, stock_date, unit, condition_status, needs_calibration, calibration_date, next_calibration_date, calibration_institution, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [category, room_id, item_name, quantity || 1, stock_date || new Date(), unit || "Unit", condition_status || "Baik", needs_calibration ? 1 : 0, calibration_date || null, next_calibration_date || null, calibration_institution || null, notes || ""]
     );
     res.json({ success: true, id: result.insertId });
   } catch (err) {
@@ -265,12 +314,37 @@ app.post("/api/inventories", async (req, res) => {
 
 app.put("/api/inventories/:id", async (req, res) => {
   try {
-    const { category, room_id, item_name, quantity, unit, condition_status, needs_calibration, calibration_date, next_calibration_date, calibration_institution, notes } = req.body;
+    const { category, room_id, item_name, quantity, stock_date, unit, condition_status, needs_calibration, calibration_date, next_calibration_date, calibration_institution, notes } = req.body;
     await pool.query(
-      `UPDATE inventories SET category=?, room_id=?, item_name=?, quantity=?, unit=?, condition_status=?, needs_calibration=?, calibration_date=?, next_calibration_date=?, calibration_institution=?, notes=? WHERE id=?`,
-      [category, room_id, item_name, quantity, unit, condition_status, needs_calibration ? 1 : 0, calibration_date || null, next_calibration_date || null, calibration_institution || null, notes, req.params.id]
+      `UPDATE inventories SET category=?, room_id=?, item_name=?, quantity=?, stock_date=?, unit=?, condition_status=?, needs_calibration=?, calibration_date=?, next_calibration_date=?, calibration_institution=?, notes=? WHERE id=?`,
+      [category, room_id, item_name, quantity, stock_date || new Date(), unit, condition_status, needs_calibration ? 1 : 0, calibration_date || null, next_calibration_date || null, calibration_institution || null, notes, req.params.id]
     );
     res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+app.patch("/api/inventories/:id/stock", async (req, res) => {
+  try {
+    const { quantity, delta, stock_date } = req.body;
+    const updateDate = stock_date || new Date().toISOString().slice(0, 10);
+    if (delta !== undefined) {
+      await pool.query(
+        `UPDATE inventories SET quantity = GREATEST(0, quantity + ?), stock_date = ? WHERE id = ?`,
+        [parseInt(delta) || 0, updateDate, req.params.id]
+      );
+    } else {
+      await pool.query(
+        `UPDATE inventories SET quantity = GREATEST(0, ?), stock_date = ? WHERE id = ?`,
+        [parseInt(quantity) || 0, updateDate, req.params.id]
+      );
+    }
+    const [[updatedItem]] = await pool.query(
+      `SELECT i.*, r.name AS room_name FROM inventories i JOIN rooms r ON i.room_id = r.id WHERE i.id = ?`,
+      [req.params.id]
+    );
+    res.json({ success: true, message: "Stok inventaris berhasil diperbarui", data: updatedItem });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -329,7 +403,7 @@ app.post("/api/inspections", async (req, res) => {
     const { inspection_type, inspection_datetime, officer_name, work_unit, room_id, inspection_items, standard_condition, result_status, finding_description, risk_level, recommendation, status_tindak_lanjut } = req.body;
     const [result] = await pool.query(
       `INSERT INTO inspections (inspection_type, inspection_datetime, officer_name, work_unit, room_id, inspection_items, standard_condition, result_status, finding_description, risk_level, recommendation, status_tindak_lanjut) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [inspection_type, inspection_datetime || new Date(), officer_name, work_unit, room_id, inspection_items, standard_condition, result_status || "Baik", finding_description || "", risk_level || "Rendah", recommendation || "", status_tindak_lanjut || "Selesai"]
+      [inspection_type, cleanDatetime(inspection_datetime), officer_name, work_unit, room_id, inspection_items, standard_condition, result_status || "Baik", finding_description || "", risk_level || "Rendah", recommendation || "", status_tindak_lanjut || "Selesai"]
     );
     if (result_status === "Perlu Perbaikan") {
       await pool.query("UPDATE rooms SET condition_status = 'Perlu Perbaikan' WHERE id = ?", [room_id]);
@@ -391,7 +465,7 @@ app.post("/api/utility-reports", upload.single("photo"), async (req, res) => {
     const photo_url = req.file ? `/${UPLOAD_DIR}/${req.file.filename}` : null;
     const [result] = await pool.query(
       `INSERT INTO utility_reports (report_datetime, officer_name, work_unit, room_id, utility_system, damage_description, recommendation, urgency, status, photo_url) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [report_datetime || new Date(), officer_name, work_unit, room_id, utility_system, damage_description, recommendation, urgency || "Segera", status || "Menunggu", photo_url]
+      [cleanDatetime(report_datetime), officer_name, work_unit, room_id, utility_system, damage_description, recommendation, urgency || "Segera", status || "Menunggu", photo_url]
     );
     res.json({ success: true, id: result.insertId });
   } catch (err) {
@@ -427,7 +501,7 @@ app.post("/api/incidents", async (req, res) => {
 
     const [result] = await pool.query(
       `INSERT INTO incident_reports (report_number, incident_datetime, location, category, chronology, affected_party, actual_impact, potential_impact, initial_action, risk_grading, reporter_name, handler_pic, investigation_result, corrective_action, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [report_number, incident_datetime || now, location, category, chronology, affected_party, actual_impact, potential_impact, initial_action, risk_grading, reporter_name, handler_pic, investigation_result || "", corrective_action || "", status || "Investigasi"]
+      [report_number, cleanDatetime(incident_datetime), location, category, chronology, affected_party, actual_impact, potential_impact, initial_action, risk_grading, reporter_name, handler_pic, investigation_result || "", corrective_action || "", status || "Investigasi"]
     );
     res.json({ success: true, report_number, id: result.insertId });
   } catch (err) {
@@ -437,7 +511,7 @@ app.post("/api/incidents", async (req, res) => {
 
 app.get("/api/periodic-reports", async (req, res) => {
   try {
-    const { period_type = "monthly", month = "10", year = "2026" } = req.query;
+    const { period_type = "monthly", month = "10", year = "2026", room_id } = req.query;
     let dateFilterInspections = "YEAR(ins.inspection_datetime) = ?";
     let dateFilterUtility = "YEAR(u.report_datetime) = ?";
     let dateFilterIncident = "YEAR(incident_datetime) = ?";
@@ -450,22 +524,57 @@ app.get("/api/periodic-reports", async (req, res) => {
       params.push(month);
     }
 
-    const [inspections] = await pool.query(`SELECT ins.*, r.name AS room_name FROM inspections ins JOIN rooms r ON ins.room_id = r.id WHERE ${dateFilterInspections} ORDER BY ins.inspection_datetime DESC`, params);
-    const [utilities] = await pool.query(`SELECT u.*, r.name AS room_name FROM utility_reports u JOIN rooms r ON u.room_id = r.id WHERE ${dateFilterUtility} ORDER BY u.report_datetime DESC`, params);
-    const [incidents] = await pool.query(`SELECT * FROM incident_reports WHERE ${dateFilterIncident} ORDER BY incident_datetime DESC`, params);
-    const [inventories] = await pool.query(`SELECT i.*, r.name AS room_name FROM inventories i JOIN rooms r ON i.room_id = r.id ORDER BY i.category ASC, i.item_name ASC`);
+    let roomFilterInspections = "";
+    let roomFilterUtility = "";
+    let roomFilterInventories = "";
+
+    if (room_id) {
+      roomFilterInspections = " AND ins.room_id = ?";
+      roomFilterUtility = " AND u.room_id = ?";
+      roomFilterInventories = " WHERE i.room_id = ?";
+    }
+
+    const [inspections] = await pool.query(
+      `SELECT ins.*, r.name AS room_name FROM inspections ins JOIN rooms r ON ins.room_id = r.id WHERE ${dateFilterInspections} ${roomFilterInspections} ORDER BY ins.inspection_datetime DESC`,
+      [...params, ...(room_id ? [room_id] : [])]
+    );
+    const [utilities] = await pool.query(
+      `SELECT u.*, r.name AS room_name FROM utility_reports u JOIN rooms r ON u.room_id = r.id WHERE ${dateFilterUtility} ${roomFilterUtility} ORDER BY u.report_datetime DESC`,
+      [...params, ...(room_id ? [room_id] : [])]
+    );
+    const [incidents] = await pool.query(
+      `SELECT * FROM incident_reports WHERE ${dateFilterIncident} ORDER BY incident_datetime DESC`,
+      params
+    );
+    const [inventories] = await pool.query(
+      `SELECT i.*, r.name AS room_name FROM inventories i JOIN rooms r ON i.room_id = r.id ${roomFilterInventories} ORDER BY i.category ASC, i.item_name ASC`,
+      room_id ? [room_id] : []
+    );
+
+    let roomDetail = null;
+    if (room_id) {
+      const [[r]] = await pool.query(`SELECT * FROM rooms WHERE id = ?`, [room_id]);
+      roomDetail = r || null;
+    }
 
     res.json({
       success: true,
       data: {
-        period_type, month, year,
+        period_type,
+        month,
+        year,
+        room_id: room_id || null,
+        room: roomDetail,
         summary: {
           total_inspections: inspections.length,
           total_utility_damages: utilities.length,
           total_incidents: incidents.length,
           total_inventories: inventories.length,
         },
-        inspections, utilities, incidents, inventories,
+        inspections,
+        utilities,
+        incidents,
+        inventories,
       },
     });
   } catch (err) {
@@ -820,6 +929,238 @@ app.put("/api/settings", async (req, res) => {
       message: "Pengaturan KOP & Pejabat Penandatangan berhasil disimpan ke database",
       data: req.body,
     });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// ==========================================
+// FITUR PENGADUAN & PENILAIAN UMUM (BARCODE)
+// ==========================================
+
+// Endpoint publik info branding Puskesmas untuk form barcode pengunjung
+app.get("/api/public/info", async (req, res) => {
+  try {
+    const [rows] = await pool.query("SELECT nama_puskesmas, instansi_induk, dinas_kesehatan, alamat_kontak, logo_url FROM app_settings LIMIT 1");
+    if (rows.length > 0) {
+      const r = rows[0];
+      return res.json({
+        success: true,
+        data: {
+          namaPuskesmas: r.nama_puskesmas,
+          instansiInduk: r.instansi_induk,
+          dinasKesehatan: r.dinas_kesehatan,
+          alamatKontak: r.alamat_kontak,
+          logoUrl: r.logo_url || null,
+        },
+      });
+    }
+    res.json({
+      success: true,
+      data: {
+        namaPuskesmas: "UPTD PUSKESMAS MUARA KULAM",
+        instansiInduk: "PEMERINTAH KABUPATEN / KOTA",
+        dinasKesehatan: "DINAS KESEHATAN KABUPATEN / KOTA",
+        alamatKontak: "Jl. Lintas Muara Kulam",
+        logoUrl: null,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Endpoint publik daftar ruangan untuk dipilih pengunjung di form barcode
+app.get("/api/public/rooms", async (req, res) => {
+  try {
+    const [rooms] = await pool.query("SELECT id, name, category FROM rooms ORDER BY category ASC, name ASC");
+    res.json({ success: true, data: rooms });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Endpoint publik kirim penilaian & pengaduan pengunjung (Akses dari Barcode)
+app.post("/api/public/feedback", upload.single("photo"), async (req, res) => {
+  try {
+    const {
+      category = "Sarana dan Prasarana",
+      rating_pelayanan = 5,
+      rating_petugas = 5,
+      rating_sarpras = 5,
+      room_id,
+      visitor_name,
+      visitor_phone,
+      complaint_text,
+    } = req.body;
+
+    if (!complaint_text || !complaint_text.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Mohon isi pesan saran, masukan, atau keluhan Anda.",
+      });
+    }
+
+    const rPelayanan = Math.max(1, Math.min(5, parseInt(rating_pelayanan) || 5));
+    const rPetugas = Math.max(1, Math.min(5, parseInt(rating_petugas) || 5));
+    const rSarpras = Math.max(1, Math.min(5, parseInt(rating_sarpras) || 5));
+    const overall_rating = Math.round((rPelayanan + rPetugas + rSarpras) / 3);
+
+    // Ambil nama ruangan jika ada room_id
+    let room_name = null;
+    let validRoomId = null;
+    if (room_id && room_id !== "" && !isNaN(parseInt(room_id))) {
+      validRoomId = parseInt(room_id);
+      const [[foundRoom]] = await pool.query("SELECT name FROM rooms WHERE id = ?", [validRoomId]);
+      if (foundRoom) room_name = foundRoom.name;
+    }
+
+    // Nomor tiket unik ADU-YYYYMM-XXX
+    const now = new Date();
+    const prefix = `ADU-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}`;
+    const [[{ count }]] = await pool.query(
+      "SELECT COUNT(*) AS count FROM public_feedbacks WHERE ticket_number LIKE ?",
+      [`${prefix}%`]
+    );
+    const ticket_number = `${prefix}-${String(count + 1).padStart(3, "0")}`;
+
+    const photo_url = req.file ? `/${UPLOAD_DIR}/${req.file.filename}` : null;
+    const finalVisitorName = visitor_name && visitor_name.trim() ? visitor_name.trim() : "Pengunjung Anonim";
+
+    const [result] = await pool.query(
+      `INSERT INTO public_feedbacks 
+        (ticket_number, category, rating_pelayanan, rating_petugas, rating_sarpras, overall_rating, room_id, room_name, visitor_name, visitor_phone, complaint_text, photo_url, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Menunggu')`,
+      [
+        ticket_number,
+        category,
+        rPelayanan,
+        rPetugas,
+        rSarpras,
+        overall_rating,
+        validRoomId,
+        room_name,
+        finalVisitorName,
+        visitor_phone || null,
+        complaint_text.trim(),
+        photo_url,
+      ]
+    );
+
+    res.json({
+      success: true,
+      message: "Terima kasih! Penilaian dan pengaduan Anda berhasil dikirim.",
+      ticket_number,
+      id: result.insertId,
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Admin: Daftar semua feedback & pengaduan pengunjung
+app.get("/api/feedbacks", async (req, res) => {
+  try {
+    const { page, limit, offset, search } = getPaginationParams(req.query);
+    const category = req.query.category || "";
+    const status = req.query.status || "";
+    const roomId = req.query.room_id || "";
+
+    let whereClauses = ["1=1"];
+    let params = [];
+
+    if (category && category !== "Semua") {
+      whereClauses.push("f.category = ?");
+      params.push(category);
+    }
+    if (status && status !== "Semua") {
+      whereClauses.push("f.status = ?");
+      params.push(status);
+    }
+    if (roomId) {
+      whereClauses.push("f.room_id = ?");
+      params.push(roomId);
+    }
+    if (search) {
+      whereClauses.push(
+        "(f.ticket_number LIKE ? OR f.visitor_name LIKE ? OR f.complaint_text LIKE ? OR f.room_name LIKE ?)"
+      );
+      params.push(`%${search}%`, `%${search}%`, `%${search}%`, `%${search}%`);
+    }
+
+    const whereSql = whereClauses.join(" AND ");
+    const [[{ total }]] = await pool.query(
+      `SELECT COUNT(*) AS total FROM public_feedbacks f WHERE ${whereSql}`,
+      params
+    );
+    const [rows] = await pool.query(
+      `SELECT f.*, COALESCE(r.name, f.room_name, 'Puskesmas Umum') AS display_room_name 
+       FROM public_feedbacks f 
+       LEFT JOIN rooms r ON f.room_id = r.id 
+       WHERE ${whereSql} 
+       ORDER BY f.created_at DESC LIMIT ? OFFSET ?`,
+      [...params, limit, offset]
+    );
+
+    formatPaginatedResponse(res, rows, page, limit, total);
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Admin: Statistik pengaduan & rating kepuasan
+app.get("/api/feedbacks/stats", async (req, res) => {
+  try {
+    const [[stats]] = await pool.query(`
+      SELECT 
+        COUNT(*) AS total,
+        ROUND(AVG(rating_pelayanan), 1) AS avg_pelayanan,
+        ROUND(AVG(rating_petugas), 1) AS avg_petugas,
+        ROUND(AVG(rating_sarpras), 1) AS avg_sarpras,
+        ROUND(AVG(overall_rating), 1) AS avg_overall,
+        SUM(CASE WHEN status = 'Menunggu' THEN 1 ELSE 0 END) AS total_menunggu,
+        SUM(CASE WHEN status = 'Diproses' THEN 1 ELSE 0 END) AS total_diproses,
+        SUM(CASE WHEN status = 'Selesai' THEN 1 ELSE 0 END) AS total_selesai
+      FROM public_feedbacks
+    `);
+
+    res.json({
+      success: true,
+      data: {
+        total: stats.total || 0,
+        avgPelayanan: parseFloat(stats.avg_pelayanan) || 5.0,
+        avgPetugas: parseFloat(stats.avg_petugas) || 5.0,
+        avgSarpras: parseFloat(stats.avg_sarpras) || 5.0,
+        avgOverall: parseFloat(stats.avg_overall) || 5.0,
+        menunggu: stats.total_menunggu || 0,
+        diproses: stats.total_diproses || 0,
+        selesai: stats.total_selesai || 0,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Admin: Update status tindak lanjut & respon admin terhadap pengaduan
+app.put("/api/feedbacks/:id", async (req, res) => {
+  try {
+    const { status, admin_response } = req.body;
+    await pool.query(
+      "UPDATE public_feedbacks SET status = ?, admin_response = ? WHERE id = ?",
+      [status || "Menunggu", admin_response || null, req.params.id]
+    );
+    res.json({ success: true, message: "Status pengaduan berhasil diperbarui" });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// Admin: Hapus pengaduan
+app.delete("/api/feedbacks/:id", async (req, res) => {
+  try {
+    await pool.query("DELETE FROM public_feedbacks WHERE id = ?", [req.params.id]);
+    res.json({ success: true, message: "Pengaduan berhasil dihapus" });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

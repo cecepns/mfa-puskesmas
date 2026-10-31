@@ -601,3 +601,262 @@ export const downloadMFKReportPDF = async ({
   // Simpan dan unduh file PDF
   doc.save(fileName);
 };
+
+/**
+ * Unduh Laporan Lengkap Khusus Per Ruangan (Inspeksi, Utilitas, Inventaris)
+ */
+export const downloadRoomReportPDF = async ({
+  room,
+  reportData,
+  periodLabel = "",
+  kopConfig = DEFAULT_KOP_CONFIG,
+}) => {
+  if (!room || !reportData) return;
+
+  const doc = new jsPDF({
+    orientation: "portrait",
+    unit: "mm",
+    format: "a4",
+  });
+
+  const rawLogo = kopConfig.logoUrl || defaultLogoPuskesmas;
+  const logoDataUrl = await loadImageAsDataUrl(rawLogo);
+
+  drawKopSurat(doc, kopConfig, logoDataUrl);
+
+  let startY = 42;
+
+  // Header Title
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text("LAPORAN KELOLA FASILITAS, UTILITAS & KESELAMATAN RUANGAN", 105, startY, { align: "center" });
+  startY += 5;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9.5);
+  doc.setTextColor(15, 118, 110);
+  doc.text(`RUANGAN: ${room.name.toUpperCase()} (${(room.category || "").replace("_", " ")})`, 105, startY, { align: "center" });
+  startY += 5;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Periode: ${periodLabel} | Waktu Ekspor: ${formatDate(new Date())}`, 105, startY, { align: "center" });
+  startY += 6;
+
+  // Ruangan Meta Box
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(14, startY, 182, 16, 2, 2, "FD");
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8.5);
+  doc.setTextColor(30, 41, 59);
+  doc.text(`Nama Ruangan: ${room.name}`, 18, startY + 5.5);
+  doc.text(`Penanggung Jawab (PJ): ${room.pic_name || "PJ Ruangan"}`, 18, startY + 11.5);
+
+  doc.text(`Kategori: ${(room.category || "").replace("_", " ")}`, 110, startY + 5.5);
+  doc.text(`Status Fisik Ruangan: ${room.condition_status || "Baik"}`, 110, startY + 11.5);
+
+  startY += 20;
+
+  // Filter Data for This Room
+  const roomInspections = (reportData.inspections || []).filter((i) => i.room_id === room.id);
+  const roomUtilities = (reportData.utilities || []).filter((u) => u.room_id === room.id);
+  const roomInventories = (reportData.inventories || []).filter((inv) => inv.room_id === room.id);
+
+  // SECTION 1: INSPEKSI FASILITAS & SANITASI
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8.5);
+  doc.setTextColor(15, 118, 110);
+  doc.text("I. REKAPITULASI HASIL INSPEKSI FASILITAS & KEBERSIHAN RUANGAN", 14, startY);
+  startY += 4;
+
+  const inspRows = roomInspections.map((i, idx) => [
+    idx + 1,
+    formatDate(i.inspection_datetime),
+    i.inspection_type,
+    `${i.officer_name || "-"}\n(${i.work_unit || "-"})`,
+    i.result_status || "Baik",
+    `${i.finding_description ? `Temuan: ${i.finding_description}\n` : ""}${i.recommendation ? `Saran: ${i.recommendation}` : "Sesuai standar"}`,
+    i.status_tindak_lanjut || "Selesai",
+  ]);
+
+  autoTable(doc, {
+    startY,
+    head: [["No", "Waktu Periksa", "Jenis Inspeksi", "Petugas", "Hasil", "Temuan & Rekomendasi", "Status"]],
+    body: inspRows.length ? inspRows : [["-", "-", "Tidak ada catatan inspeksi khusus ruangan ini pada periode ini", "-", "-", "-", "-"]],
+    theme: "grid",
+    headStyles: {
+      fillColor: [15, 118, 110],
+      textColor: [255, 255, 255],
+      fontSize: 8,
+      fontStyle: "bold",
+      halign: "center",
+    },
+    styles: { fontSize: 7, cellPadding: 2, valign: "middle", lineColor: [226, 232, 240] },
+    columnStyles: {
+      0: { cellWidth: 8, halign: "center" },
+      1: { cellWidth: 23 },
+      2: { cellWidth: 28 },
+      3: { cellWidth: 26 },
+      4: { cellWidth: 20, halign: "center" },
+      5: { cellWidth: 59 },
+      6: { cellWidth: 18, halign: "center" },
+    },
+    margin: { left: 14, right: 14 },
+  });
+
+  startY = doc.lastAutoTable.finalY + 8;
+
+  // SECTION 2: KERUSAKAN SISTEM UTILITAS RUANGAN
+  const pageHeight = doc.internal.pageSize.getHeight();
+  if (startY + 35 > pageHeight - 30) {
+    doc.addPage();
+    drawKopSurat(doc, kopConfig, logoDataUrl);
+    startY = 44;
+  }
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8.5);
+  doc.setTextColor(217, 119, 6);
+  doc.text("II. REKAPITULASI LAPORAN KERUSAKAN SISTEM UTILITAS RUANGAN", 14, startY);
+  startY += 4;
+
+  const utilRows = roomUtilities.map((u, idx) => [
+    idx + 1,
+    formatDate(u.report_datetime),
+    u.utility_system || "-",
+    `${u.officer_name || "-"}\n(${u.work_unit || "-"})`,
+    `Kerusakan: ${u.damage_description || "-"}\n${u.recommendation ? `Rekomendasi: ${u.recommendation}` : ""}`,
+    u.urgency || "Normal",
+    u.status || "Menunggu",
+  ]);
+
+  autoTable(doc, {
+    startY,
+    head: [["No", "Waktu Lapor", "Sistem Utilitas", "Pelapor", "Kerusakan & Rekomendasi", "Urgensi", "Status"]],
+    body: utilRows.length ? utilRows : [["-", "-", "Tidak ada laporan kerusakan utilitas pada ruangan ini", "-", "-", "-", "-"]],
+    theme: "grid",
+    headStyles: {
+      fillColor: [217, 119, 6],
+      textColor: [255, 255, 255],
+      fontSize: 8,
+      fontStyle: "bold",
+      halign: "center",
+    },
+    styles: { fontSize: 7, cellPadding: 2, valign: "middle", lineColor: [226, 232, 240] },
+    columnStyles: {
+      0: { cellWidth: 8, halign: "center" },
+      1: { cellWidth: 23 },
+      2: { cellWidth: 28 },
+      3: { cellWidth: 28 },
+      4: { cellWidth: 65 },
+      5: { cellWidth: 15, halign: "center" },
+      6: { cellWidth: 15, halign: "center" },
+    },
+    margin: { left: 14, right: 14 },
+  });
+
+  startY = doc.lastAutoTable.finalY + 8;
+
+  // SECTION 3: INVENTARISASI RUANGAN (B3, SARPRAS, ALKES)
+  if (startY + 35 > pageHeight - 30) {
+    doc.addPage();
+    drawKopSurat(doc, kopConfig, logoDataUrl);
+    startY = 44;
+  }
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8.5);
+  doc.setTextColor(30, 64, 175);
+  doc.text("III. DAFTAR INVENTARISASI ASET, BAHAN B3 & ALKES RUANGAN", 14, startY);
+  startY += 4;
+
+  const invRows = roomInventories.map((inv, idx) => [
+    idx + 1,
+    inv.item_name || "-",
+    inv.category || "-",
+    `${inv.quantity || 1} ${inv.unit || "Unit"}`,
+    inv.condition_status || "Baik",
+    inv.calibration_date ? `Exp: ${inv.next_calibration_date || "-"}` : inv.needs_calibration ? "Wajib Kalibrasi" : "-",
+    inv.notes || "-",
+  ]);
+
+  autoTable(doc, {
+    startY,
+    head: [["No", "Nama Aset / Bahan / Alkes", "Kategori", "Jumlah / Stok", "Kondisi", "Kalibrasi", "Catatan"]],
+    body: invRows.length ? invRows : [["-", "Tidak ada catatan inventaris terdaftar untuk ruangan ini", "-", "-", "-", "-", "-"]],
+    theme: "grid",
+    headStyles: {
+      fillColor: [30, 64, 175],
+      textColor: [255, 255, 255],
+      fontSize: 8,
+      fontStyle: "bold",
+      halign: "center",
+    },
+    styles: { fontSize: 7, cellPadding: 2, valign: "middle", lineColor: [226, 232, 240] },
+    columnStyles: {
+      0: { cellWidth: 8, halign: "center" },
+      1: { cellWidth: 48 },
+      2: { cellWidth: 22 },
+      3: { cellWidth: 22, halign: "center" },
+      4: { cellWidth: 20, halign: "center" },
+      5: { cellWidth: 26 },
+      6: { cellWidth: 36 },
+    },
+    margin: { left: 14, right: 14 },
+  });
+
+  const finalY = doc.lastAutoTable.finalY + 8;
+
+  // Signatures for Room Report
+  let y = finalY;
+  if (y + 45 > pageHeight - 20) {
+    doc.addPage();
+    drawKopSurat(doc, kopConfig, logoDataUrl);
+    y = 44;
+  }
+
+  doc.setFontSize(8.5);
+  doc.setTextColor(51, 65, 85);
+  const todayStr = new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+  doc.text(`Ditetapkan di: ${kopConfig.kotaDokumen || "Muara Kulam"}, Tanggal: ${todayStr}`, 196, y, { align: "right" });
+  y += 7;
+
+  doc.setFont("helvetica", "normal");
+  doc.text("Penanggung Jawab Ruangan,", 30, y);
+  doc.setFont("helvetica", "bold");
+  doc.text(`PJ ${room.name}`, 30, y + 4.5);
+
+  doc.setFont("helvetica", "normal");
+  doc.text("Mengetahui & Menyetujui,", 140, y);
+  doc.setFont("helvetica", "bold");
+  doc.text(kopConfig.pimpinanJabatan || "Kepala UPTD Puskesmas", 140, y + 4.5);
+
+  y += 24;
+
+  doc.setFont("helvetica", "bold");
+  doc.setTextColor(15, 23, 42);
+  doc.text(room.pic_name || "PJ Ruangan", 30, y);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text("Penanggung Jawab Sarana Ruangan", 30, y + 4.5);
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text(kopConfig.pimpinanNama || "dr. H. Ahmad Fauzi, M.Kes", 140, y);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(100, 116, 139);
+  doc.text(`NIP. ${kopConfig.pimpinanNip || "-"}`, 140, y + 4.5);
+
+  addPageFooters(doc);
+
+  const cleanRoomName = (room.name || "Ruangan").replace(/[^a-zA-Z0-9]/g, "_");
+  const fileName = `Laporan_Ruangan_${cleanRoomName}_${periodLabel.replace(/\s+/g, "_")}.pdf`;
+  doc.save(fileName);
+};

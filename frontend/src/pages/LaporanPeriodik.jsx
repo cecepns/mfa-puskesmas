@@ -38,6 +38,7 @@ import toast from "react-hot-toast";
 import Modal from "../components/Common/Modal";
 import {
   downloadMFKReportPDF,
+  downloadRoomReportPDF,
   INSPECTION_CATEGORIES,
   DEFAULT_KOP_CONFIG,
 } from "../utils/pdfGenerator";
@@ -58,7 +59,7 @@ const MONTHS = [
   { value: "12", label: "Desember" },
 ];
 
-const YEARS = ["2024", "2025", "2026", "2027"];
+const YEARS = ["2023", "2024", "2025", "2026", "2027", "2028"];
 
 export default function LaporanPeriodik() {
   const { user } = useAuth();
@@ -73,6 +74,13 @@ export default function LaporanPeriodik() {
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [generatingPdf, setGeneratingPdf] = useState(false);
   const [isKopModalOpen, setIsKopModalOpen] = useState(false);
+
+  // Fitur Laporan Per Ruangan
+  const [rooms, setRooms] = useState([]);
+  const [selectedRoomId, setSelectedRoomId] = useState("");
+  const [isRoomModalOpen, setIsRoomModalOpen] = useState(false);
+  const [modalRoomId, setModalRoomId] = useState("");
+  const [downloadingRoom, setDownloadingRoom] = useState(false);
 
   // KOP & Tanda Tangan Configuration (Persisted in DB & localStorage)
   const [kopConfig, setKopConfig] = useState(() => {
@@ -124,11 +132,15 @@ export default function LaporanPeriodik() {
   const fetchReport = async () => {
     setLoading(true);
     try {
-      const res = await request.get(API_ENDPOINTS.PERIODIC_REPORTS.LIST, {
+      const params = {
         period_type: periodType,
         month,
         year,
-      });
+      };
+      if (selectedRoomId) {
+        params.room_id = selectedRoomId;
+      }
+      const res = await request.get(API_ENDPOINTS.PERIODIC_REPORTS.LIST, params);
       setReportData(res.data);
     } catch (err) {
       toast.error("Gagal memuat laporan periodik");
@@ -139,10 +151,15 @@ export default function LaporanPeriodik() {
 
   useEffect(() => {
     fetchReport();
-  }, [periodType, month, year]);
+  }, [periodType, month, year, selectedRoomId]);
 
   useEffect(() => {
     fetchKopSettings();
+    request.get(API_ENDPOINTS.ROOMS.LIST).then((res) => {
+      const list = res.data || [];
+      setRooms(list);
+      if (list.length > 0) setModalRoomId(list[0].id);
+    });
   }, []);
 
   const periodLabel =
@@ -309,6 +326,114 @@ export default function LaporanPeriodik() {
     }
   };
 
+  const handleDownloadRoomPDF = async (targetRoom) => {
+    if (!isAdmin) {
+      toast.error("Akses ditolak: Unduh laporan PDF khusus untuk Administrator!");
+      return;
+    }
+    if (!targetRoom || !reportData) {
+      toast.error("Data ruangan belum dipilih");
+      return;
+    }
+    setDownloadingRoom(true);
+    try {
+      await downloadRoomReportPDF({
+        room: targetRoom,
+        reportData,
+        periodLabel,
+        kopConfig,
+      });
+      toast.success(`Laporan PDF Ruangan ${targetRoom.name} berhasil diunduh!`);
+      setIsRoomModalOpen(false);
+    } catch (err) {
+      console.error("PDF room generation error:", err);
+      toast.error("Gagal membuat dokumen PDF ruangan: " + err.message);
+    } finally {
+      setDownloadingRoom(false);
+    }
+  };
+
+  const downloadRoomCSV = (targetRoom) => {
+    if (!isAdmin) {
+      toast.error("Akses ditolak: Unduh laporan CSV khusus untuk Administrator!");
+      return;
+    }
+    if (!reportData || !targetRoom) return;
+
+    const roomInspections = (reportData.inspections || []).filter((i) => i.room_id === targetRoom.id);
+    const roomUtilities = (reportData.utilities || []).filter((u) => u.room_id === targetRoom.id);
+    const roomInventories = (reportData.inventories || []).filter((inv) => inv.room_id === targetRoom.id);
+
+    const rows = [
+      [kopConfig.instansiInduk || "PEMERINTAH KABUPATEN / KOTA"],
+      [kopConfig.dinasKesehatan || "DINAS KESEHATAN KABUPATEN / KOTA"],
+      [kopConfig.namaPuskesmas || "UPTD PUSKESMAS MUARA KULAM"],
+      [`Alamat: ${kopConfig.alamatKontak || "-"}`],
+      ["LAPORAN PROGRAM KELOLA FASILITAS & KESELAMATAN RUANGAN (MFK)"],
+      [`Ruangan: ${targetRoom.name} (${(targetRoom.category || "").replace("_", " ")}) | PJ: ${targetRoom.pic_name || "PJ Ruangan"}`],
+      [`Periode: ${periodLabel}`],
+      [],
+      ["I. HASIL INSPEKSI FASILITAS & KEBERSIHAN RUANGAN"],
+      ["No", "Waktu Periksa", "Jenis Inspeksi", "Petugas", "Unit Kerja", "Hasil", "Temuan", "Rekomendasi", "Status Tindak Lanjut"],
+      ...roomInspections.map((i, idx) => [
+        idx + 1,
+        i.inspection_datetime,
+        i.inspection_type,
+        i.officer_name,
+        i.work_unit,
+        i.result_status,
+        i.finding_description || "-",
+        i.recommendation || "-",
+        i.status_tindak_lanjut || "-",
+      ]),
+      [],
+      ["II. REKAPITULASI KERUSAKAN SISTEM UTILITAS RUANGAN"],
+      ["No", "Waktu Lapor", "Sistem Utilitas", "Pelapor", "Unit Kerja", "Kerusakan", "Rekomendasi", "Urgensi", "Status"],
+      ...roomUtilities.map((u, idx) => [
+        idx + 1,
+        u.report_datetime,
+        u.utility_system,
+        u.officer_name,
+        u.work_unit,
+        u.damage_description,
+        u.recommendation || "-",
+        u.urgency,
+        u.status,
+      ]),
+      [],
+      ["III. DAFTAR INVENTARISASI RUANGAN (B3, SARPRAS, ALKES)"],
+      ["No", "Nama Aset / Bahan / Alkes", "Kategori", "Jumlah / Stok", "Satuan", "Kondisi", "Kalibrasi", "Catatan"],
+      ...roomInventories.map((inv, idx) => [
+        idx + 1,
+        inv.item_name,
+        inv.category,
+        inv.quantity,
+        inv.unit,
+        inv.condition_status,
+        inv.calibration_date ? `Exp: ${inv.next_calibration_date || "-"}` : "-",
+        inv.notes || "-",
+      ]),
+      [],
+      ["LEMBAR PENGESAHAN"],
+      [`Ditetapkan di: ${kopConfig.kotaDokumen || "Muara Kulam"}, Tanggal: ${new Date().toLocaleDateString("id-ID")}`],
+      [`PJ Ruangan: ${targetRoom.pic_name || "PJ Ruangan"} (${targetRoom.name})`],
+      [`Mengetahui Kepala Puskesmas: ${kopConfig.pimpinanNama || "-"} (NIP. ${kopConfig.pimpinanNip || "-"})`],
+    ];
+
+    const csvContent =
+      "data:text/csv;charset=utf-8,\uFEFF" +
+      rows.map((e) => e.map((c) => `"${String(c || "").replace(/"/g, '""')}"`).join(",")).join("\n");
+
+    const cleanRoomName = (targetRoom.name || "Ruangan").replace(/\s+/g, "_");
+    const link = document.createElement("a");
+    link.setAttribute("href", encodeURI(csvContent));
+    link.setAttribute("download", `Laporan_Ruangan_${cleanRoomName}_${periodType}_${year}_${month}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success(`Laporan CSV ruangan ${targetRoom.name} berhasil diunduh`);
+  };
+
   const handlePrint = () => {
     window.print();
   };
@@ -381,11 +506,24 @@ export default function LaporanPeriodik() {
                 <span>Export CSV</span>
               </button>
               <button
+                onClick={() => {
+                  if (rooms.length > 0 && !modalRoomId) {
+                    setModalRoomId(rooms[0].id);
+                  }
+                  setIsRoomModalOpen(true);
+                }}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-medium text-xs sm:text-sm rounded-xl shadow-md shadow-teal-600/20 transition cursor-pointer shrink-0"
+                title="Download Dokumen Laporan Khusus Per Ruangan"
+              >
+                <Building className="w-4 h-4 shrink-0" />
+                <span>Dokumen Per Ruangan</span>
+              </button>
+              <button
                 onClick={() => setIsPdfModalOpen(true)}
                 className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs sm:text-sm rounded-xl shadow-md transition cursor-pointer shrink-0"
               >
                 <FileText className="w-4 h-4 text-emerald-400 shrink-0" />
-                <span>Download PDF</span>
+                <span>Download PDF Gabungan</span>
               </button>
             </>
           ) : (
@@ -431,7 +569,23 @@ export default function LaporanPeriodik() {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+          <div className="flex items-center gap-1.5">
+            <label className="text-xs font-medium text-slate-500">Ruangan:</label>
+            <select
+              value={selectedRoomId}
+              onChange={(e) => setSelectedRoomId(e.target.value)}
+              className="px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 max-w-[170px] sm:max-w-[210px] truncate"
+            >
+              <option value="">Semua Ruangan</option>
+              {rooms.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {periodType === "monthly" && (
             <div className="flex items-center gap-1.5">
               <label className="text-xs font-medium text-slate-500">Bulan:</label>
@@ -1663,6 +1817,33 @@ export default function LaporanPeriodik() {
             </div>
           </div>
 
+          {/* Opsi 5: Dokumen Lengkap Per Ruangan */}
+          <div className="p-3.5 bg-teal-50 border border-teal-200 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-teal-600 text-white">
+                  Khusus Ruangan
+                </span>
+                <h4 className="font-bold text-xs text-teal-950">Dokumen Laporan Per Ruangan</h4>
+              </div>
+              <p className="text-xs text-teal-800 mt-1">
+                Unduh dokumen lengkap untuk 1 ruangan terpilih (seluruh inspeksi, utilitas & inventaris ruangan) dengan tanda tangan PJ Ruangan.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setIsPdfModalOpen(false);
+                if (rooms.length > 0 && !modalRoomId) setModalRoomId(rooms[0].id);
+                setIsRoomModalOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs rounded-xl shadow-xs transition cursor-pointer shrink-0"
+            >
+              <Building className="w-3.5 h-3.5" />
+              <span>Pilih & Unduh Ruangan</span>
+            </button>
+          </div>
+
           {/* Footer Actions */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100">
             <button
@@ -1681,6 +1862,118 @@ export default function LaporanPeriodik() {
               Tutup
             </button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Modal Download Laporan Dokumen Per Ruangan */}
+      <Modal
+        isOpen={isRoomModalOpen}
+        onClose={() => setIsRoomModalOpen(false)}
+        title="Download Dokumen Laporan Khusus Per Ruangan"
+      >
+        <div className="space-y-4 text-sm">
+          <div className="p-3.5 bg-teal-50 border border-teal-200 rounded-xl flex items-center justify-between">
+            <div>
+              <p className="text-xs font-semibold text-teal-800 uppercase tracking-wider">
+                Periode Laporan
+              </p>
+              <p className="font-bold text-slate-800 text-sm mt-0.5">
+                {periodLabel}
+              </p>
+            </div>
+            <span className="px-2.5 py-1 bg-white text-teal-800 text-xs font-bold rounded-lg border border-teal-200 shadow-2xs">
+              Laporan Terpisah Per Ruangan
+            </span>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1.5">
+              Pilih Ruangan / Klaster *
+            </label>
+            <select
+              value={modalRoomId}
+              onChange={(e) => setModalRoomId(e.target.value)}
+              className="w-full border border-slate-300 rounded-xl p-2.5 text-sm font-medium focus:ring-2 focus:ring-teal-500 focus:outline-none bg-white"
+            >
+              {rooms.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.name} ({r.category.replace("_", " ")}) - PJ: {r.pic_name || "PJ Ruangan"}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Room Summary Preview */}
+          {(() => {
+            const currentSelectedRoom = rooms.find((r) => String(r.id) === String(modalRoomId)) || rooms[0];
+            if (!currentSelectedRoom) return null;
+            const rInspections = (reportData?.inspections || []).filter((i) => i.room_id === currentSelectedRoom.id);
+            const rUtilities = (reportData?.utilities || []).filter((u) => u.room_id === currentSelectedRoom.id);
+            const rInventories = (reportData?.inventories || []).filter((inv) => inv.room_id === currentSelectedRoom.id);
+
+            return (
+              <div className="space-y-3">
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm">{currentSelectedRoom.name}</h4>
+                      <p className="text-xs text-slate-500">
+                        PJ: <b className="text-slate-700">{currentSelectedRoom.pic_name || "PJ Ruangan"}</b> • Kondisi: <span className="font-semibold text-emerald-700">{currentSelectedRoom.condition_status || "Baik"}</span>
+                      </p>
+                    </div>
+                    <span className="text-xs px-2.5 py-1 bg-white border border-slate-200 font-semibold text-slate-600 rounded-lg">
+                      {currentSelectedRoom.category.replace("_", " ")}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                    <div className="p-2 bg-white rounded-lg border border-slate-200">
+                      <p className="text-[11px] text-slate-500 font-medium">Inspeksi</p>
+                      <p className="text-base font-bold text-emerald-700 mt-0.5">{rInspections.length}</p>
+                    </div>
+                    <div className="p-2 bg-white rounded-lg border border-slate-200">
+                      <p className="text-[11px] text-slate-500 font-medium">Kerusakan Utilitas</p>
+                      <p className="text-base font-bold text-amber-700 mt-0.5">{rUtilities.length}</p>
+                    </div>
+                    <div className="p-2 bg-white rounded-lg border border-slate-200">
+                      <p className="text-[11px] text-slate-500 font-medium">Aset & B3</p>
+                      <p className="text-base font-bold text-blue-700 mt-0.5">{rInventories.length}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl text-xs text-amber-800 space-y-1">
+                  <p className="font-semibold flex items-center gap-1.5">
+                    <CheckSquare className="w-4 h-4 text-amber-600" />
+                    Dokumen ini mencakup seluruh laporan ruangan:
+                  </p>
+                  <p className="text-[11px] text-slate-600 pl-5">
+                    Hasil inspeksi sanitasi & kebersihan ruangan, laporan perbaikan kerusakan utilitas, serta rekapitulasi inventarisasi (B3, sarpras, alat kesehatan) lengkap dengan tanda tangan PJ Ruangan & Kepala Puskesmas.
+                  </p>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2 pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => downloadRoomCSV(currentSelectedRoom)}
+                    className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 border border-slate-300 hover:bg-slate-50 text-slate-700 font-semibold rounded-xl text-xs sm:text-sm transition cursor-pointer"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Download CSV Ruangan</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleDownloadRoomPDF(currentSelectedRoom)}
+                    disabled={downloadingRoom}
+                    className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-bold rounded-xl text-xs sm:text-sm shadow-md transition cursor-pointer disabled:opacity-50"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>{downloadingRoom ? "Membuat PDF..." : "Download PDF Laporan Ruangan"}</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </Modal>
 

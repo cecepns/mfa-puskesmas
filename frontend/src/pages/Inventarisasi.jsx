@@ -17,6 +17,9 @@ import {
   Filter,
   RefreshCw,
   Boxes,
+  Minus,
+  MinusCircle,
+  Calendar,
 } from "lucide-react";
 import { request } from "../utils/request";
 import { API_ENDPOINTS } from "../utils/endpoints";
@@ -45,6 +48,9 @@ export default function Inventarisasi() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [deleteConfirmItem, setDeleteConfirmItem] = useState(null);
+  const [quickStockItem, setQuickStockItem] = useState(null);
+  const [decreaseAmount, setDecreaseAmount] = useState(1);
+  const [decreaseDate, setDecreaseDate] = useState(new Date().toISOString().slice(0, 10));
 
   // Stats
   const [stats, setStats] = useState({ total: 0, b3: 0, sarpras: 0, alkes: 0, kalibrasi: 0 });
@@ -54,7 +60,8 @@ export default function Inventarisasi() {
     room_id: "",
     item_name: "",
     quantity: 1,
-    unit: "Unit",
+    stock_date: new Date().toISOString().slice(0, 10),
+    unit: "Botol",
     condition_status: "Baik",
     needs_calibration: false,
     calibration_date: "",
@@ -125,6 +132,7 @@ export default function Inventarisasi() {
       room_id: rooms[0]?.id || "",
       item_name: "",
       quantity: 1,
+      stock_date: new Date().toISOString().slice(0, 10),
       unit: selectedCategory === "B3" ? "Botol" : "Unit",
       condition_status: "Baik",
       needs_calibration: selectedCategory === "Alkes" || selectedCategory === "Kalibrasi",
@@ -143,6 +151,7 @@ export default function Inventarisasi() {
       room_id: item.room_id,
       item_name: item.item_name,
       quantity: item.quantity,
+      stock_date: item.stock_date ? item.stock_date.slice(0, 10) : item.created_at ? item.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10),
       unit: item.unit,
       condition_status: item.condition_status,
       needs_calibration: Boolean(item.needs_calibration),
@@ -152,6 +161,54 @@ export default function Inventarisasi() {
       notes: item.notes || "",
     });
     setIsModalOpen(true);
+  };
+
+  // Cepat kurangi/tambah 1 stok langsung di baris tabel
+  const handleQuickAdjust = async (item, delta) => {
+    const newQty = Math.max(0, item.quantity + delta);
+    const today = new Date().toISOString().slice(0, 10);
+    try {
+      await request.patch(API_ENDPOINTS.INVENTORIES.UPDATE_STOCK(item.id), {
+        quantity: newQty,
+        stock_date: today,
+      });
+      setItems((prev) =>
+        prev.map((i) => (i.id === item.id ? { ...i, quantity: newQty, stock_date: today } : i))
+      );
+      if (delta < 0) {
+        toast.success(`Stok ${item.item_name} berkurang menjadi ${newQty} ${item.unit}`);
+      } else {
+        toast.success(`Stok ${item.item_name} bertambah menjadi ${newQty} ${item.unit}`);
+      }
+    } catch (err) {
+      toast.error("Gagal memperbarui stok");
+    }
+  };
+
+  // Kurangi stok bulanan via dialog pemakaian
+  const handleApplyMonthlyDecrease = async (e) => {
+    e.preventDefault();
+    if (!quickStockItem) return;
+    const amount = parseInt(decreaseAmount) || 0;
+    if (amount <= 0) {
+      toast.error("Jumlah pemakaian harus lebih dari 0");
+      return;
+    }
+    const newQty = Math.max(0, quickStockItem.quantity - amount);
+    try {
+      await request.patch(API_ENDPOINTS.INVENTORIES.UPDATE_STOCK(quickStockItem.id), {
+        quantity: newQty,
+        stock_date: decreaseDate,
+      });
+      toast.success(
+        `Pemakaian berhasil dicatat! Sisa stok ${quickStockItem.item_name}: ${newQty} ${quickStockItem.unit}`
+      );
+      setQuickStockItem(null);
+      fetchInventories();
+      fetchStats();
+    } catch (err) {
+      toast.error("Gagal mengurangi stok");
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -425,34 +482,42 @@ export default function Inventarisasi() {
 
         {/* Responsive Table */}
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[850px]">
+          <table className="w-full text-left border-collapse min-w-[950px]">
             <thead>
               <tr className="bg-slate-50/90 text-slate-600 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
-                <th className="px-4 py-3.5 w-60">Nama Item / Aset</th>
-                <th className="px-4 py-3.5 w-28 whitespace-nowrap">Kategori</th>
-                <th className="px-4 py-3.5 w-44">
+                <th className="px-4 py-3.5 w-56">Nama Item / Aset</th>
+                <th className="px-4 py-3.5 w-24 whitespace-nowrap">Kategori</th>
+                <th className="px-4 py-3.5 w-40">
                   <div className="flex items-center gap-1.5">
                     <Building className="w-3.5 h-3.5 text-slate-400" />
                     <span>Ruangan</span>
                   </div>
                 </th>
-                <th className="px-4 py-3.5 w-28 text-center whitespace-nowrap">Jumlah</th>
-                <th className="px-4 py-3.5 w-36 whitespace-nowrap">Kondisi</th>
-                <th className="px-4 py-3.5 w-48 whitespace-nowrap">Kalibrasi</th>
-                <th className="px-4 py-3.5 min-w-[160px]">Keterangan</th>
-                <th className="px-4 py-3.5 w-20 text-right">Aksi</th>
+                <th className="px-4 py-3.5 w-44 text-center whitespace-nowrap">
+                  <span>Stok & Pemakaian</span>
+                </th>
+                <th className="px-4 py-3.5 w-32 whitespace-nowrap">
+                  <div className="flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Tgl Stok / Update</span>
+                  </div>
+                </th>
+                <th className="px-4 py-3.5 w-32 whitespace-nowrap">Kondisi</th>
+                <th className="px-4 py-3.5 w-44 whitespace-nowrap">Kalibrasi</th>
+                <th className="px-4 py-3.5 min-w-[140px]">Keterangan</th>
+                <th className="px-4 py-3.5 w-24 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
               {loading ? (
                 <tr>
-                  <td colSpan="8" className="px-4 py-8 text-center text-slate-400">
+                  <td colSpan="9" className="px-4 py-8 text-center text-slate-400">
                     Memuat data inventaris...
                   </td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan="8" className="px-4 py-8 text-center text-slate-400">
+                  <td colSpan="9" className="px-4 py-8 text-center text-slate-400">
                     Tidak ada barang inventaris yang sesuai dengan filter.
                   </td>
                 </tr>
@@ -470,9 +535,71 @@ export default function Inventarisasi() {
                       {item.room_name}
                     </td>
                     <td className="px-4 py-3.5 text-center whitespace-nowrap">
-                      <span className="inline-block px-2.5 py-1 bg-slate-100 text-slate-800 font-bold rounded-lg text-xs">
-                        {item.quantity} {item.unit}
-                      </span>
+                      <div className="inline-flex flex-col items-center gap-1">
+                        <div className="inline-flex items-center gap-1 bg-slate-100/90 border border-slate-200/90 rounded-xl p-1 shadow-2xs">
+                          <button
+                            type="button"
+                            onClick={() => handleQuickAdjust(item, -1)}
+                            disabled={item.quantity <= 0}
+                            title="Kurangi stok 1"
+                            className="w-6 h-6 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-rose-600 hover:border-rose-200 flex items-center justify-center text-xs font-bold transition disabled:opacity-30 cursor-pointer shadow-2xs"
+                          >
+                            <Minus className="w-3 h-3" />
+                          </button>
+                          <span
+                            className={`px-2 py-0.5 text-xs font-bold rounded-md ${
+                              item.quantity <= 2
+                                ? "text-amber-700 bg-amber-50"
+                                : "text-slate-800"
+                            }`}
+                          >
+                            {item.quantity} {item.unit}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleQuickAdjust(item, 1)}
+                            title="Tambah stok 1"
+                            className="w-6 h-6 rounded-lg bg-white border border-slate-200 text-slate-600 hover:text-emerald-600 hover:border-emerald-200 flex items-center justify-center text-xs font-bold transition cursor-pointer shadow-2xs"
+                          >
+                            <Plus className="w-3 h-3" />
+                          </button>
+                        </div>
+                        {item.category === "B3" && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setQuickStockItem(item);
+                              setDecreaseAmount(1);
+                              setDecreaseDate(new Date().toISOString().slice(0, 10));
+                            }}
+                            className="text-[10px] text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200/80 px-2 py-0.5 rounded-md font-semibold inline-flex items-center gap-1 cursor-pointer transition shadow-2xs"
+                            title="Kurangi stok pemakaian bulanan"
+                          >
+                            <MinusCircle className="w-2.5 h-2.5 text-amber-600" />
+                            <span>Kurangi Pemakaian</span>
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3.5 text-xs text-slate-600 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5 font-medium text-slate-700">
+                        <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                        <span>
+                          {item.stock_date
+                            ? new Date(item.stock_date).toLocaleDateString("id-ID", {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                              })
+                            : item.created_at
+                            ? new Date(item.created_at).toLocaleDateString("id-ID", {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                              })
+                            : "-"}
+                        </span>
+                      </div>
                     </td>
                     <td className="px-4 py-3.5 whitespace-nowrap">
                       {getConditionBadge(item.condition_status)}
@@ -593,17 +720,17 @@ export default function Inventarisasi() {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
-                Jumlah *
+                Jumlah / Sisa Stok *
               </label>
               <input
                 type="number"
                 required
-                min="1"
+                min="0"
                 value={formData.quantity}
-                onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 1 })}
+                onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value) || 0 })}
                 className="w-full border border-slate-300 rounded-xl p-2.5 text-sm"
               />
             </div>
@@ -613,9 +740,22 @@ export default function Inventarisasi() {
               </label>
               <input
                 type="text"
-                placeholder="Unit, Botol, Set, Liter"
+                placeholder="Botol, Liter, Unit, Set"
                 value={formData.unit}
                 onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
+                className="w-full border border-slate-300 rounded-xl p-2.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1 flex items-center justify-between">
+                <span>Tanggal Stok</span>
+                <span className="text-[10px] text-emerald-600 font-normal lowercase">bisa backdate</span>
+              </label>
+              <input
+                type="date"
+                required
+                value={formData.stock_date}
+                onChange={(e) => setFormData({ ...formData, stock_date: e.target.value })}
                 className="w-full border border-slate-300 rounded-xl p-2.5 text-sm"
               />
             </div>
@@ -752,6 +892,79 @@ export default function Inventarisasi() {
             </button>
           </div>
         </div>
+      </Modal>
+      {/* Modal Cepat Kurangi Stok Pemakaian Bulanan (Khususnya B3) */}
+      <Modal
+        isOpen={Boolean(quickStockItem)}
+        onClose={() => setQuickStockItem(null)}
+        title="Catat Pemakaian / Kurangi Stok Bulanan"
+      >
+        <form onSubmit={handleApplyMonthlyDecrease} className="space-y-4 text-sm">
+          <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl space-y-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-amber-900">{quickStockItem?.item_name}</span>
+              <span className="text-[11px] font-semibold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-md">
+                {quickStockItem?.room_name}
+              </span>
+            </div>
+            <p className="text-xs text-amber-800">
+              Stok saat ini: <b className="text-amber-950 font-bold">{quickStockItem?.quantity} {quickStockItem?.unit}</b>
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1 flex items-center justify-between">
+                <span>Tanggal Pemakaian</span>
+                <span className="text-[10px] text-emerald-600 font-normal lowercase">bisa pilih bulan lalu</span>
+              </label>
+              <input
+                type="date"
+                required
+                value={decreaseDate}
+                onChange={(e) => setDecreaseDate(e.target.value)}
+                className="w-full border border-slate-300 rounded-xl p-2.5 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 uppercase tracking-wider mb-1">
+                Jumlah Pemakaian ({quickStockItem?.unit}) *
+              </label>
+              <input
+                type="number"
+                required
+                min="1"
+                max={quickStockItem?.quantity || 9999}
+                value={decreaseAmount}
+                onChange={(e) => setDecreaseAmount(parseInt(e.target.value) || 0)}
+                className="w-full border border-slate-300 rounded-xl p-2.5 text-sm font-semibold"
+              />
+            </div>
+          </div>
+
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
+            <span className="text-xs text-slate-600">Sisa Stok Setelah Dikurangi:</span>
+            <span className="text-sm font-bold text-slate-900">
+              {Math.max(0, (quickStockItem?.quantity || 0) - (parseInt(decreaseAmount) || 0))} {quickStockItem?.unit}
+            </span>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              onClick={() => setQuickStockItem(null)}
+              className="px-4 py-2 border border-slate-200 rounded-xl text-slate-600 hover:bg-slate-50 font-medium"
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2 bg-amber-600 hover:bg-amber-700 text-white font-medium rounded-xl shadow-sm transition"
+            >
+              Simpan Pengurangan Stok
+            </button>
+          </div>
+        </form>
       </Modal>
     </div>
   );

@@ -13,6 +13,8 @@ import ManajemenUser from "./pages/ManajemenUser";
 import MasterRuangan from "./pages/MasterRuangan";
 import Pengaturan from "./pages/Pengaturan";
 import Login from "./pages/Login";
+import PengaduanPublik from "./pages/PengaduanPublik";
+import PengaduanAdmin from "./pages/PengaduanAdmin";
 
 function ProtectedLayout() {
   const { isAuthenticated, user, logout } = useAuth();
@@ -78,6 +80,9 @@ export default function App() {
         <Toaster position="top-right" toastOptions={{ duration: 3500 }} />
         <Routes>
           <Route path="/login" element={<Login />} />
+          {/* Public Barcode / QR Scan Route for Visitors */}
+          <Route path="/pengaduan" element={<PengaduanPublik />} />
+
           <Route element={<ProtectedLayout />}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/ruangan" element={<MasterRuangan />} />
@@ -85,6 +90,7 @@ export default function App() {
             <Route path="/fasilitas-utilitas" element={<FasilitasUtilitas />} />
             <Route path="/insiden-risiko" element={<InsidenRisiko />} />
             <Route path="/laporan-periodik" element={<LaporanPeriodik />} />
+            <Route path="/pengaduan-admin" element={<PengaduanAdmin />} />
             <Route path="/users" element={<ManajemenUser />} />
             <Route path="/pengaturan" element={<Pengaturan />} />
           </Route>
