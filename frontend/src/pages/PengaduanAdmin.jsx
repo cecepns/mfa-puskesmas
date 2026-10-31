@@ -22,13 +22,16 @@ import {
   Camera,
   Eye,
   CheckSquare,
+  FileSpreadsheet,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { request } from "../utils/request";
 import { API_ENDPOINTS } from "../utils/endpoints";
 import { useDebounce } from "../hooks/useDebounce";
 import Pagination from "../components/Common/Pagination";
 import Modal from "../components/Common/Modal";
 import { QRCodeSVG, downloadQRCodeImage } from "../utils/qrGenerator";
+import { downloadFeedbackReportPDF, DEFAULT_KOP_CONFIG } from "../utils/pdfGenerator";
 import defaultLogo from "../assets/logo-puskesmas.png";
 
 const CATEGORIES = [
@@ -197,6 +200,125 @@ export default function PengaduanAdmin() {
     toast.success("Gambar Barcode QR berhasil diunduh");
   };
 
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  const handleDownloadPDF = async () => {
+    setDownloadingPdf(true);
+    try {
+      const res = await request.get(API_ENDPOINTS.FEEDBACKS.LIST, {
+        all: "true",
+        category: selectedCategory === "Semua" ? "" : selectedCategory,
+        status: selectedStatus === "Semua" ? "" : selectedStatus,
+        room_id: selectedRoom,
+      });
+      const data = res.data || [];
+      if (data.length === 0) {
+        toast.error("Tidak ada data pengaduan untuk diunduh");
+        return;
+      }
+
+      let kopConfig = DEFAULT_KOP_CONFIG;
+      try {
+        const saved = localStorage.getItem("mfk_kop_config");
+        if (saved) kopConfig = { ...DEFAULT_KOP_CONFIG, ...JSON.parse(saved) };
+      } catch {}
+
+      await downloadFeedbackReportPDF({
+        feedbacks: data,
+        periodLabel: new Date().toLocaleDateString("id-ID", { month: "long", year: "numeric" }),
+        kopConfig,
+        summary: stats,
+      });
+      toast.success("Laporan PDF Pengaduan berhasil diunduh");
+    } catch (err) {
+      toast.error("Gagal membuat laporan PDF");
+    } finally {
+      setDownloadingPdf(false);
+    }
+  };
+
+  const handleDownloadCSV = async () => {
+    try {
+      const res = await request.get(API_ENDPOINTS.FEEDBACKS.LIST, {
+        all: "true",
+        category: selectedCategory === "Semua" ? "" : selectedCategory,
+        status: selectedStatus === "Semua" ? "" : selectedStatus,
+        room_id: selectedRoom,
+      });
+      const data = res.data || [];
+      if (data.length === 0) {
+        toast.error("Tidak ada data pengaduan untuk diunduh");
+        return;
+      }
+
+      let kopConfig = DEFAULT_KOP_CONFIG;
+      try {
+        const saved = localStorage.getItem("mfk_kop_config");
+        if (saved) kopConfig = { ...DEFAULT_KOP_CONFIG, ...JSON.parse(saved) };
+      } catch {}
+
+      const rows = [
+        [kopConfig.instansiInduk || "PEMERINTAH KABUPATEN / KOTA"],
+        [kopConfig.dinasKesehatan || "DINAS KESEHATAN KABUPATEN / KOTA"],
+        [kopConfig.namaPuskesmas || "UPTD PUSKESMAS MUARA KULAM"],
+        ["LAPORAN REKAPITULASI SURVEI KEPUASAN & PENGADUAN FASILITAS PENGUNJUNG"],
+        [`Waktu Unduh: ${new Date().toLocaleString("id-ID")}`],
+        [],
+        [
+          "No",
+          "Nomor Tiket",
+          "Tanggal Masuk",
+          "Nama Pengunjung",
+          "No WhatsApp / Kontak",
+          "Lokasi Ruangan",
+          "Kategori",
+          "Rating Pelayanan (1-5)",
+          "Rating Petugas (1-5)",
+          "Rating Sarpras (1-5)",
+          "Rating Keseluruhan",
+          "Uraian Keluhan / Saran",
+          "Status",
+          "Catatan Tindak Lanjut Petugas",
+        ],
+        ...data.map((f, idx) => [
+          idx + 1,
+          f.ticket_number,
+          new Date(f.created_at).toLocaleString("id-ID"),
+          f.visitor_name || "Anonim",
+          f.visitor_phone || "-",
+          f.display_room_name || f.room_name || "Puskesmas Umum",
+          f.category,
+          f.rating_pelayanan || 5,
+          f.rating_petugas || 5,
+          f.rating_sarpras || 5,
+          `${f.overall_rating || 5}.0`,
+          f.complaint_text,
+          f.status,
+          f.admin_response || "-",
+        ]),
+        [],
+        ["LEMBAR PENGESAHAN"],
+        [`Ditetapkan di: ${kopConfig.kotaDokumen || "Muara Kulam"}, Tanggal: ${new Date().toLocaleDateString("id-ID")}`],
+        [`Mengetahui & Menyetujui: ${kopConfig.pimpinanJabatan} - ${kopConfig.pimpinanNama}`],
+        [`Dilaporkan Oleh: ${kopConfig.pelaporJabatan} - ${kopConfig.pelaporNama}`],
+      ];
+
+      const csvContent =
+        "data:text/csv;charset=utf-8,\uFEFF" +
+        rows.map((e) => e.map((c) => `"${String(c || "").replace(/"/g, '""')}"`).join(",")).join("\n");
+
+      const link = document.createElement("a");
+      link.setAttribute("href", encodeURI(csvContent));
+      link.setAttribute("download", `Laporan_Pengaduan_SIKELA_${Date.now()}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      toast.success("Laporan CSV berhasil diunduh");
+    } catch {
+      toast.error("Gagal mengunduh file CSV");
+    }
+  };
+
   const getStatusBadge = (status) => {
     switch (status) {
       case "Selesai":
@@ -238,13 +360,38 @@ export default function PengaduanAdmin() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            to="/laporan-periodik"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs sm:text-sm rounded-xl transition shadow-xs"
+            title="Buka Halaman Laporan Periodik Bulanan"
+          >
+            <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+            <span>Rekap Bulanan di Laporan</span>
+          </Link>
+          <button
+            onClick={handleDownloadCSV}
+            className="inline-flex items-center gap-1.5 px-3 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold text-xs sm:text-sm rounded-xl transition shadow-xs cursor-pointer"
+            title="Unduh Spreadsheet CSV"
+          >
+            <Download className="w-4 h-4 text-slate-500" />
+            <span>CSV</span>
+          </button>
+          <button
+            onClick={handleDownloadPDF}
+            disabled={downloadingPdf}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2.5 bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs sm:text-sm rounded-xl shadow-sm transition cursor-pointer disabled:opacity-50"
+            title="Unduh Dokumen PDF Ber-KOP Resmi"
+          >
+            <Download className="w-4 h-4" />
+            <span>{downloadingPdf ? "Memproses..." : "Unduh PDF"}</span>
+          </button>
           <button
             onClick={() => setIsBarcodeModalOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold text-sm rounded-xl shadow-md shadow-emerald-600/20 transition cursor-pointer"
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold text-xs sm:text-sm rounded-xl shadow-md shadow-emerald-600/20 transition cursor-pointer"
           >
             <QrCode className="w-4 h-4" />
-            <span>Cetak / Tampilkan Barcode</span>
+            <span>Cetak Poster Barcode</span>
           </button>
         </div>
       </div>

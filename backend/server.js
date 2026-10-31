@@ -540,23 +540,27 @@ app.get("/api/periodic-reports", async (req, res) => {
     let dateFilterInspections = "YEAR(ins.inspection_datetime) = ?";
     let dateFilterUtility = "YEAR(u.report_datetime) = ?";
     let dateFilterIncident = "YEAR(incident_datetime) = ?";
+    let dateFilterFeedback = "YEAR(f.created_at) = ?";
     let params = [year];
 
     if (period_type === "monthly") {
       dateFilterInspections += " AND MONTH(ins.inspection_datetime) = ?";
       dateFilterUtility += " AND MONTH(u.report_datetime) = ?";
       dateFilterIncident += " AND MONTH(incident_datetime) = ?";
+      dateFilterFeedback += " AND MONTH(f.created_at) = ?";
       params.push(month);
     }
 
     let roomFilterInspections = "";
     let roomFilterUtility = "";
     let roomFilterInventories = "";
+    let roomFilterFeedback = "";
 
     if (room_id) {
       roomFilterInspections = " AND ins.room_id = ?";
       roomFilterUtility = " AND u.room_id = ?";
       roomFilterInventories = " WHERE i.room_id = ?";
+      roomFilterFeedback = " AND f.room_id = ?";
     }
 
     const [inspections] = await pool.query(
@@ -575,12 +579,35 @@ app.get("/api/periodic-reports", async (req, res) => {
       `SELECT i.*, r.name AS room_name FROM inventories i JOIN rooms r ON i.room_id = r.id ${roomFilterInventories} ORDER BY i.category ASC, i.item_name ASC`,
       room_id ? [room_id] : []
     );
+    const [feedbacks] = await pool.query(
+      `SELECT f.*, COALESCE(r.name, f.room_name, 'Puskesmas Umum') AS display_room_name 
+       FROM public_feedbacks f 
+       LEFT JOIN rooms r ON f.room_id = r.id 
+       WHERE ${dateFilterFeedback} ${roomFilterFeedback} 
+       ORDER BY f.created_at DESC`,
+      [...params, ...(room_id ? [room_id] : [])]
+    );
 
     let roomDetail = null;
     if (room_id) {
       const [[r]] = await pool.query(`SELECT * FROM rooms WHERE id = ?`, [room_id]);
       roomDetail = r || null;
     }
+
+    const totalFeedbacks = feedbacks.length;
+    const avgOverall = totalFeedbacks > 0
+      ? (feedbacks.reduce((acc, cur) => acc + (cur.overall_rating || 5), 0) / totalFeedbacks).toFixed(1)
+      : "5.0";
+    const avgPelayanan = totalFeedbacks > 0
+      ? (feedbacks.reduce((acc, cur) => acc + (cur.rating_pelayanan || 5), 0) / totalFeedbacks).toFixed(1)
+      : "5.0";
+    const avgPetugas = totalFeedbacks > 0
+      ? (feedbacks.reduce((acc, cur) => acc + (cur.rating_petugas || 5), 0) / totalFeedbacks).toFixed(1)
+      : "5.0";
+    const avgSarpras = totalFeedbacks > 0
+      ? (feedbacks.reduce((acc, cur) => acc + (cur.rating_sarpras || 5), 0) / totalFeedbacks).toFixed(1)
+      : "5.0";
+    const selesaiFeedbacks = feedbacks.filter((f) => f.status === "Selesai").length;
 
     res.json({
       success: true,
@@ -595,11 +622,18 @@ app.get("/api/periodic-reports", async (req, res) => {
           total_utility_damages: utilities.length,
           total_incidents: incidents.length,
           total_inventories: inventories.length,
+          total_feedbacks: totalFeedbacks,
+          avg_feedback_rating: avgOverall,
+          avg_pelayanan: avgPelayanan,
+          avg_petugas: avgPetugas,
+          avg_sarpras: avgSarpras,
+          feedbacks_resolved: selesaiFeedbacks,
         },
         inspections,
         utilities,
         incidents,
         inventories,
+        feedbacks,
       },
     });
   } catch (err) {
@@ -1090,6 +1124,8 @@ app.get("/api/feedbacks", async (req, res) => {
     const category = req.query.category || "";
     const status = req.query.status || "";
     const roomId = req.query.room_id || "";
+    const month = req.query.month || "";
+    const year = req.query.year || "";
 
     let whereClauses = ["1=1"];
     let params = [];
@@ -1106,6 +1142,14 @@ app.get("/api/feedbacks", async (req, res) => {
       whereClauses.push("f.room_id = ?");
       params.push(roomId);
     }
+    if (month && month !== "Semua") {
+      whereClauses.push("MONTH(f.created_at) = ?");
+      params.push(parseInt(month));
+    }
+    if (year && year !== "Semua") {
+      whereClauses.push("YEAR(f.created_at) = ?");
+      params.push(parseInt(year));
+    }
     if (search) {
       whereClauses.push(
         "(f.ticket_number LIKE ? OR f.visitor_name LIKE ? OR f.complaint_text LIKE ? OR f.room_name LIKE ?)"
@@ -1114,6 +1158,18 @@ app.get("/api/feedbacks", async (req, res) => {
     }
 
     const whereSql = whereClauses.join(" AND ");
+
+    if (req.query.all === "true") {
+      const [allRows] = await pool.query(
+        `SELECT f.*, COALESCE(r.name, f.room_name, 'Puskesmas Umum') AS display_room_name 
+         FROM public_feedbacks f 
+         LEFT JOIN rooms r ON f.room_id = r.id 
+         WHERE ${whereSql} 
+         ORDER BY f.created_at DESC`,
+        params
+      );
+      return res.json({ success: true, data: allRows });
+    }
     const [[{ total }]] = await pool.query(
       `SELECT COUNT(*) AS total FROM public_feedbacks f WHERE ${whereSql}`,
       params

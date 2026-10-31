@@ -197,11 +197,20 @@ const addPageFooters = (doc) => {
  */
 export const downloadMFKReportPDF = async ({
   reportData,
-  mode = "all", // "all" | inspectionCategory | "utilitas" | "insiden" | "inventaris" | "inventaris_barang" | "inventaris_b3" | "inventaris_alkes"
+  mode = "all", // "all" | inspectionCategory | "utilitas" | "insiden" | "inventaris" | "inventaris_barang" | "inventaris_b3" | "inventaris_alkes" | "pengaduan"
   periodLabel = "",
   kopConfig = DEFAULT_KOP_CONFIG,
 }) => {
   if (!reportData) return;
+
+  if (mode === "pengaduan") {
+    return downloadFeedbackReportPDF({
+      feedbacks: reportData.feedbacks || [],
+      periodLabel,
+      kopConfig,
+      summary: reportData.summary,
+    });
+  }
 
   const doc = new jsPDF({
     orientation: "portrait",
@@ -858,5 +867,150 @@ export const downloadRoomReportPDF = async ({
 
   const cleanRoomName = (room.name || "Ruangan").replace(/[^a-zA-Z0-9]/g, "_");
   const fileName = `Laporan_Ruangan_${cleanRoomName}_${periodLabel.replace(/\s+/g, "_")}.pdf`;
+  doc.save(fileName);
+};
+
+/**
+ * Unduh Laporan PDF Khusus Rekapitulasi Survei Kepuasan & Pengaduan Pengunjung (Hasil Scan Barcode)
+ */
+export const downloadFeedbackReportPDF = async ({
+  feedbacks = [],
+  periodLabel = "",
+  kopConfig = DEFAULT_KOP_CONFIG,
+  summary = null,
+}) => {
+  const doc = new jsPDF({
+    orientation: "portrait",
+    unit: "mm",
+    format: "a4",
+  });
+
+  const rawLogo = kopConfig.logoUrl || defaultLogoPuskesmas;
+  const logoDataUrl = await loadImageAsDataUrl(rawLogo);
+
+  drawKopSurat(doc, kopConfig, logoDataUrl);
+
+  let startY = 42;
+
+  // Title section
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11.5);
+  doc.setTextColor(15, 23, 42);
+  doc.text("LAPORAN REKAPITULASI SURVEI KEPUASAN & PENGADUAN FASILITAS", 105, startY, { align: "center" });
+  startY += 5;
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9);
+  doc.setTextColor(15, 118, 110);
+  doc.text("SUMBER: HASIL SCAN BARCODE PENGUNJUNG • STANDAR MFK PUSKESMAS", 105, startY, { align: "center" });
+  startY += 5;
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8);
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Periode: ${periodLabel} | Waktu Ekspor: ${formatDate(new Date())}`, 105, startY, {
+    align: "center",
+  });
+  startY += 6;
+
+  // Calculate summary metrics if not provided
+  const total = feedbacks.length;
+  const avgOverall = summary?.avg_feedback_rating || (total > 0
+    ? (feedbacks.reduce((acc, c) => acc + (c.overall_rating || 5), 0) / total).toFixed(1)
+    : "5.0");
+  const avgPelayanan = summary?.avg_pelayanan || (total > 0
+    ? (feedbacks.reduce((acc, c) => acc + (c.rating_pelayanan || 5), 0) / total).toFixed(1)
+    : "5.0");
+  const avgPetugas = summary?.avg_petugas || (total > 0
+    ? (feedbacks.reduce((acc, c) => acc + (c.rating_petugas || 5), 0) / total).toFixed(1)
+    : "5.0");
+  const avgSarpras = summary?.avg_sarpras || (total > 0
+    ? (feedbacks.reduce((acc, c) => acc + (c.rating_sarpras || 5), 0) / total).toFixed(1)
+    : "5.0");
+  const selesaiCount = feedbacks.filter((f) => f.status === "Selesai").length;
+  const prosesCount = feedbacks.filter((f) => f.status === "Diproses").length;
+  const menungguCount = feedbacks.filter((f) => f.status === "Menunggu").length;
+
+  // Summary box
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(14, startY, 182, 16, 2, 2, "FD");
+
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(8.5);
+  doc.setTextColor(30, 41, 59);
+  doc.text(`Total Responden / Aduan: ${total} Masukan`, 20, startY + 6);
+  doc.text(`Skor Kepuasan: ${avgOverall} / 5.0 (Rating Bintang)`, 95, startY + 6);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.5);
+  doc.setTextColor(71, 85, 105);
+  doc.text(`Rata-rata: Pelayanan ${avgPelayanan}/5  •  Petugas ${avgPetugas}/5  •  Sarpras & Sanitasi ${avgSarpras}/5`, 20, startY + 11.5);
+  doc.text(`Status: Selesai (${selesaiCount})  •  Diproses (${prosesCount})  •  Menunggu (${menungguCount})`, 115, startY + 11.5);
+
+  startY += 20;
+
+  // Table rows
+  const tableBody = feedbacks.map((f, idx) => [
+    idx + 1,
+    `${f.ticket_number}\n${formatDate(f.created_at)}`,
+    `${f.visitor_name || "Anonim"}${f.visitor_phone ? `\n(${f.visitor_phone})` : ""}`,
+    f.display_room_name || f.room_name || "Puskesmas Umum",
+    `[${f.category}]\nPelayanan: ${f.rating_pelayanan || 5}★\nPetugas: ${f.rating_petugas || 5}★\nSarpras: ${f.rating_sarpras || 5}★`,
+    f.complaint_text,
+    f.admin_response ? `Respon: ${f.admin_response}` : "Belum ada respon petugas",
+    f.status || "Menunggu",
+  ]);
+
+  autoTable(doc, {
+    startY,
+    head: [
+      [
+        "No",
+        "Tiket & Waktu",
+        "Pengirim",
+        "Ruangan / Area",
+        "Kategori & Rating",
+        "Uraian Keluhan / Saran",
+        "Tindak Lanjut Petugas",
+        "Status",
+      ],
+    ],
+    body:
+      tableBody.length > 0
+        ? tableBody
+        : [["-", "-", "-", "-", "Tidak ada data pengaduan / survei pada periode ini", "-", "-", "-"]],
+    theme: "grid",
+    headStyles: {
+      fillColor: [15, 118, 110], // Emerald dark
+      textColor: [255, 255, 255],
+      fontSize: 8,
+      fontStyle: "bold",
+      halign: "center",
+    },
+    styles: {
+      fontSize: 7,
+      cellPadding: 2,
+      valign: "middle",
+      lineColor: [226, 232, 240],
+    },
+    columnStyles: {
+      0: { cellWidth: 7, halign: "center" },
+      1: { cellWidth: 24 },
+      2: { cellWidth: 24 },
+      3: { cellWidth: 24 },
+      4: { cellWidth: 24 },
+      5: { cellWidth: 38 },
+      6: { cellWidth: 26 },
+      7: { cellWidth: 15, halign: "center" },
+    },
+    margin: { left: 14, right: 14 },
+  });
+
+  const finalY = doc.lastAutoTable?.finalY || startY + 20;
+  drawSignatures(doc, finalY + 8, kopConfig, logoDataUrl);
+  addPageFooters(doc);
+
+  const fileName = `Laporan_Pengaduan_Survei_${periodLabel.replace(/\s+/g, "_")}.pdf`;
   doc.save(fileName);
 };

@@ -30,6 +30,8 @@ import {
   FlaskConical,
   Activity,
   Boxes,
+  MessageSquare,
+  Star,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { request } from "../utils/request";
@@ -39,6 +41,7 @@ import Modal from "../components/Common/Modal";
 import {
   downloadMFKReportPDF,
   downloadRoomReportPDF,
+  downloadFeedbackReportPDF,
   INSPECTION_CATEGORIES,
   DEFAULT_KOP_CONFIG,
 } from "../utils/pdfGenerator";
@@ -243,6 +246,40 @@ export default function LaporanPeriodik() {
         inv.notes || "-",
       ]),
       [],
+      ["V. REKAPITULASI SURVEI KEPUASAN & PENGADUAN PENGUNJUNG (BARCODE)"],
+      [
+        "No",
+        "Nomor Tiket",
+        "Tanggal & Waktu",
+        "Nama Pengunjung",
+        "Kontak / No WA",
+        "Ruangan / Area",
+        "Kategori Pengaduan",
+        "Rating Pelayanan (1-5)",
+        "Rating Petugas (1-5)",
+        "Rating Sarpras (1-5)",
+        "Rating Keseluruhan",
+        "Uraian Keluhan / Saran",
+        "Status Penanganan",
+        "Catatan Tindak Lanjut Petugas",
+      ],
+      ...(reportData.feedbacks || []).map((f, idx) => [
+        idx + 1,
+        f.ticket_number,
+        new Date(f.created_at).toLocaleString("id-ID"),
+        f.visitor_name || "Anonim",
+        f.visitor_phone || "-",
+        f.display_room_name || f.room_name || "Puskesmas Umum",
+        f.category,
+        f.rating_pelayanan || 5,
+        f.rating_petugas || 5,
+        f.rating_sarpras || 5,
+        `${f.overall_rating || 5}.0`,
+        f.complaint_text,
+        f.status,
+        f.admin_response || "-",
+      ]),
+      [],
       ["LEMBAR PENGESAHAN"],
       [`Ditetapkan di: ${kopConfig.kotaDokumen || "Muara Kulam"}, Tanggal: ${new Date().toLocaleDateString("id-ID")}`],
       [`Mengetahui & Menyetujui: ${kopConfig.pimpinanJabatan} - ${kopConfig.pimpinanNama} (NIP. ${kopConfig.pimpinanNip})`],
@@ -260,6 +297,80 @@ export default function LaporanPeriodik() {
     link.click();
     document.body.removeChild(link);
     toast.success("Laporan CSV berhasil diunduh");
+  };
+
+  const downloadFeedbackCSV = () => {
+    if (!isAdmin) {
+      toast.error("Akses ditolak: Unduh laporan CSV khusus untuk Administrator!");
+      return;
+    }
+    const feedbacks = reportData?.feedbacks || [];
+    if (feedbacks.length === 0) {
+      toast.error("Tidak ada data pengaduan/survei pada periode ini");
+      return;
+    }
+
+    const rows = [
+      [kopConfig.instansiInduk || "PEMERINTAH KABUPATEN / KOTA"],
+      [kopConfig.dinasKesehatan || "DINAS KESEHATAN KABUPATEN / KOTA"],
+      [kopConfig.namaPuskesmas || "UPTD PUSKESMAS MUARA KULAM"],
+      [`Alamat: ${kopConfig.alamatKontak || "-"}`],
+      ["LAPORAN REKAPITULASI SURVEI KEPUASAN & PENGADUAN FASILITAS PENGUNJUNG (BARCODE)"],
+      [`Periode: ${periodLabel}`],
+      [],
+      [
+        "No",
+        "Nomor Tiket",
+        "Tanggal & Waktu",
+        "Nama Pengunjung",
+        "Kontak / No WA",
+        "Ruangan / Area",
+        "Kategori Pengaduan",
+        "Rating Pelayanan (1-5)",
+        "Rating Petugas (1-5)",
+        "Rating Sarpras (1-5)",
+        "Rating Keseluruhan",
+        "Uraian Keluhan / Saran",
+        "Status Penanganan",
+        "Catatan Tindak Lanjut Petugas",
+      ],
+      ...feedbacks.map((f, idx) => [
+        idx + 1,
+        f.ticket_number,
+        new Date(f.created_at).toLocaleString("id-ID"),
+        f.visitor_name || "Anonim",
+        f.visitor_phone || "-",
+        f.display_room_name || f.room_name || "Puskesmas Umum",
+        f.category,
+        f.rating_pelayanan || 5,
+        f.rating_petugas || 5,
+        f.rating_sarpras || 5,
+        `${f.overall_rating || 5}.0`,
+        f.complaint_text,
+        f.status,
+        f.admin_response || "-",
+      ]),
+      [],
+      ["LEMBAR PENGESAHAN"],
+      [`Ditetapkan di: ${kopConfig.kotaDokumen || "Muara Kulam"}, Tanggal: ${new Date().toLocaleDateString("id-ID")}`],
+      [`Mengetahui & Menyetujui: ${kopConfig.pimpinanJabatan} - ${kopConfig.pimpinanNama} (NIP. ${kopConfig.pimpinanNip})`],
+      [`Dilaporkan Oleh: ${kopConfig.pelaporJabatan} - ${kopConfig.pelaporNama} (${kopConfig.pelaporKeterangan})`],
+    ];
+
+    const csvContent =
+      "data:text/csv;charset=utf-8,\uFEFF" +
+      rows.map((e) => e.map((c) => `"${String(c || "").replace(/"/g, '""')}"`).join(",")).join("\n");
+
+    const link = document.createElement("a");
+    link.setAttribute("href", encodeURI(csvContent));
+    link.setAttribute(
+      "download",
+      `Laporan_Pengaduan_SIKELA_${(kopConfig.namaPuskesmas || "Puskesmas").replace(/\s+/g, "_")}_${periodType}_${year}_${month}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Laporan Pengaduan CSV berhasil diunduh");
   };
 
   const [inventarisFilter, setInventarisFilter] = useState("all"); // "all" | "barang" | "b3" | "alkes"
@@ -316,6 +427,8 @@ export default function LaporanPeriodik() {
           ? "Laporan Inventarisasi Alat Kesehatan"
           : categoryMode === "inventaris"
           ? "Laporan Gabungan Inventarisasi"
+          : categoryMode === "pengaduan"
+          ? "Laporan Survei & Pengaduan Fasilitas (Hasil Barcode)"
           : `Laporan ${categoryMode}`;
       toast.success(`${label} berhasil diunduh dalam format PDF`);
     } catch (err) {
@@ -737,7 +850,7 @@ export default function LaporanPeriodik() {
       </div>
 
       {/* Navigation Tabs for detailed sections */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 print:hidden">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 print:hidden">
         <button
           onClick={() => setActiveTab("inspeksi")}
           className={`w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer text-center ${
@@ -787,15 +900,27 @@ export default function LaporanPeriodik() {
         </button>
 
         <button
+          onClick={() => setActiveTab("pengaduan")}
+          className={`w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer text-center ${
+            activeTab === "pengaduan"
+              ? "bg-teal-600 text-white shadow-md shadow-teal-600/20"
+              : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
+          }`}
+        >
+          <MessageSquare className="w-4 h-4 shrink-0" />
+          <span className="truncate">Pengaduan ({reportData?.feedbacks?.length || 0})</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab("pengesahan")}
-          className={`w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer text-center col-span-2 sm:col-span-1 lg:col-span-1 ${
+          className={`w-full inline-flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition cursor-pointer text-center ${
             activeTab === "pengesahan"
               ? "bg-slate-900 text-white shadow-md"
               : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
           }`}
         >
           <FileText className="w-4 h-4 shrink-0" />
-          <span className="truncate">Pengesahan & KOP</span>
+          <span className="truncate">Pengesahan</span>
         </button>
       </div>
 
@@ -1453,7 +1578,196 @@ export default function LaporanPeriodik() {
           </div>
         )}
 
-        {/* TAB 5: LEMBAR PENGESAHAN */}
+        {/* TAB 5: PENGADUAN & SURVEI PENGUNJUNG (BARCODE) */}
+        {activeTab === "pengaduan" && (
+          <div>
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col sm:flex-row gap-3 sm:items-center justify-between bg-slate-50/60">
+              <div className="flex items-center gap-2">
+                <MessageSquare className="w-5 h-5 text-teal-600" />
+                <div>
+                  <h3 className="font-bold text-slate-800 text-base">
+                    Rekapitulasi Survei Kepuasan & Pengaduan Fasilitas (Hasil Barcode)
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Masukan penilaian 3 aspek dan keluhan kebersihan sarana dari masyarakat / pengunjung Puskesmas.
+                  </p>
+                </div>
+              </div>
+
+              {/* Action Buttons: Unduh CSV & Unduh PDF Pengaduan */}
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={downloadFeedbackCSV}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold rounded-xl transition shadow-xs cursor-pointer"
+                  title="Unduh Data CSV / Excel"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                  <span>Unduh CSV</span>
+                </button>
+                <button
+                  onClick={() => handleDownloadPDF("pengaduan")}
+                  disabled={generatingPdf}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold rounded-xl transition shadow-sm cursor-pointer disabled:opacity-50"
+                  title="Unduh Dokumen PDF Ber-KOP Resmi"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>{generatingPdf ? "Memproses..." : "Unduh PDF Pengaduan"}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Rating Metric Chips */}
+            <div className="p-4 bg-teal-50/40 border-b border-slate-100 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+              <div className="bg-white p-3 rounded-xl border border-teal-100 shadow-2xs">
+                <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Total Responden</p>
+                <p className="text-xl font-black text-slate-800 mt-1">
+                  {reportData?.feedbacks?.length || 0}
+                  <span className="text-xs font-normal text-slate-400 ml-1">masukan</span>
+                </p>
+                <p className="text-[10px] text-emerald-600 font-medium mt-0.5">
+                  {reportData?.summary?.feedbacks_resolved || 0} ditindaklanjuti
+                </p>
+              </div>
+              <div className="bg-white p-3 rounded-xl border border-teal-100 shadow-2xs">
+                <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Kualitas Pelayanan</p>
+                <p className="text-xl font-black text-amber-500 flex items-center gap-1 mt-1">
+                  <Star className="w-4 h-4 fill-amber-400 text-amber-500" />
+                  <span>{reportData?.summary?.avg_pelayanan || "5.0"}</span>
+                  <span className="text-xs font-normal text-slate-400">/ 5.0</span>
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Ketertiban layanan</p>
+              </div>
+              <div className="bg-white p-3 rounded-xl border border-teal-100 shadow-2xs">
+                <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Keramahan Petugas</p>
+                <p className="text-xl font-black text-emerald-600 flex items-center gap-1 mt-1">
+                  <Star className="w-4 h-4 fill-emerald-400 text-emerald-500" />
+                  <span>{reportData?.summary?.avg_petugas || "5.0"}</span>
+                  <span className="text-xs font-normal text-slate-400">/ 5.0</span>
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Kesigapan staf</p>
+              </div>
+              <div className="bg-white p-3 rounded-xl border border-teal-100 shadow-2xs">
+                <p className="text-[11px] text-slate-500 font-semibold uppercase tracking-wider">Sarana & Sanitasi</p>
+                <p className="text-xl font-black text-teal-600 flex items-center gap-1 mt-1">
+                  <Star className="w-4 h-4 fill-teal-400 text-teal-500" />
+                  <span>{reportData?.summary?.avg_sarpras || "5.0"}</span>
+                  <span className="text-xs font-normal text-slate-400">/ 5.0</span>
+                </p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Toilet & kebersihan</p>
+              </div>
+            </div>
+
+            {/* Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-slate-50/80 text-slate-600 font-semibold uppercase tracking-wider border-b border-slate-200">
+                    <th className="px-4 py-3 w-12 text-center">No</th>
+                    <th className="px-4 py-3 w-36">Tiket & Waktu</th>
+                    <th className="px-4 py-3 w-40">Pengunjung</th>
+                    <th className="px-4 py-3 w-36">Ruangan / Area</th>
+                    <th className="px-4 py-3 w-44">Penilaian Aspek</th>
+                    <th className="px-4 py-3">Keluhan / Saran Pengunjung</th>
+                    <th className="px-4 py-3 w-28 text-center">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-slate-700">
+                  {(!reportData?.feedbacks || reportData.feedbacks.length === 0) ? (
+                    <tr>
+                      <td colSpan="7" className="px-4 py-8 text-center text-slate-400">
+                        Belum ada survei kepuasan atau pengaduan pengunjung pada periode {periodLabel}.
+                      </td>
+                    </tr>
+                  ) : (
+                    reportData.feedbacks.map((f, idx) => (
+                      <tr key={f.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="px-4 py-3 text-center text-slate-400 font-medium">
+                          {idx + 1}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="font-mono font-bold text-emerald-800">
+                            {f.ticket_number}
+                          </span>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            {new Date(f.created_at).toLocaleDateString("id-ID", {
+                              day: "2-digit",
+                              month: "short",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                            })}
+                          </p>
+                        </td>
+                        <td className="px-4 py-3 font-medium text-slate-800">
+                          <div className="flex items-center gap-1.5">
+                            <User className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span>{f.visitor_name || "Anonim"}</span>
+                          </div>
+                          {f.visitor_phone && (
+                            <p className="text-[11px] text-slate-400 mt-0.5">
+                              {f.visitor_phone}
+                            </p>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-1.5 text-slate-700">
+                            <Building className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span>{f.display_room_name || f.room_name || "Puskesmas Umum"}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="text-slate-500">Pelayanan:</span>
+                              <span className="font-bold text-amber-500">★ {f.rating_pelayanan || 5}/5</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="text-slate-500">Petugas:</span>
+                              <span className="font-bold text-emerald-600">★ {f.rating_petugas || 5}/5</span>
+                            </div>
+                            <div className="flex items-center justify-between text-[11px]">
+                              <span className="text-slate-500">Sarpras:</span>
+                              <span className="font-bold text-teal-600">★ {f.rating_sarpras || 5}/5</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <p className="font-semibold text-slate-900 line-clamp-1">
+                            [{f.category}]
+                          </p>
+                          <p className="text-slate-600 text-xs mt-0.5 line-clamp-2">
+                            {f.complaint_text}
+                          </p>
+                          {f.admin_response && (
+                            <div className="mt-1.5 p-2 bg-emerald-50 rounded-lg border border-emerald-200 text-[11px] text-emerald-900">
+                              <span className="font-bold">Respon: </span>
+                              {f.admin_response}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-center whitespace-nowrap">
+                          <span
+                            className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${
+                              f.status === "Selesai"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : f.status === "Diproses"
+                                ? "bg-blue-50 text-blue-700 border-blue-200"
+                                : "bg-amber-50 text-amber-700 border-amber-200"
+                            }`}
+                          >
+                            {f.status || "Menunggu"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* TAB 6: LEMBAR PENGESAHAN */}
         {activeTab === "pengesahan" && (
           <div className="p-6 sm:p-8 space-y-6">
             <div className="border border-slate-200 rounded-2xl p-6 bg-slate-50/50 space-y-4">
@@ -1809,6 +2123,50 @@ export default function LaporanPeriodik() {
                   onClick={() => handleDownloadPDF("insiden")}
                   disabled={generatingPdf}
                   className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-rose-50 text-rose-800 hover:bg-rose-600 hover:text-white border border-rose-200 text-xs font-semibold rounded-lg transition cursor-pointer shrink-0 disabled:opacity-50"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>PDF</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Opsi 5: Laporan Rekapitulasi Survei Kepuasan & Pengaduan Fasilitas (Hasil Barcode) */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                <MessageSquare className="w-4 h-4 text-teal-600" />
+                <span>Laporan Survei & Pengaduan Fasilitas (Hasil Barcode)</span>
+              </h4>
+              <span className="text-xs text-slate-400">Standar Akreditasi Penilaian Pengunjung</span>
+            </div>
+
+            <div className="p-3 bg-white border border-slate-200 hover:border-teal-300 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 transition">
+              <div>
+                <p className="font-semibold text-slate-800 text-xs flex items-center gap-1.5">
+                  <span>Hasil Survei Kepuasan & Pengaduan Pengunjung</span>
+                  <span className="px-1.5 py-0.5 rounded text-[10px] bg-amber-50 text-amber-700 font-bold border border-amber-200">
+                    ⭐ {reportData?.summary?.avg_feedback_rating || "5.0"}
+                  </span>
+                </p>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {reportData?.feedbacks?.length || 0} responden tercatat pada {periodLabel}
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={downloadFeedbackCSV}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition cursor-pointer"
+                  title="Unduh CSV / Excel"
+                >
+                  <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>CSV</span>
+                </button>
+                <button
+                  onClick={() => handleDownloadPDF("pengaduan")}
+                  disabled={generatingPdf}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold rounded-lg transition cursor-pointer disabled:opacity-50"
+                  title="Unduh PDF Resmi Ber-KOP"
                 >
                   <Download className="w-3.5 h-3.5" />
                   <span>PDF</span>
