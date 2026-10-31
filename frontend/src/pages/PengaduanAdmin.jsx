@@ -729,6 +729,23 @@ export default function PengaduanAdmin() {
                   placeholder="https://sikela-puskesmas.vercel.app"
                   className="w-full border border-slate-300 rounded-xl p-2 text-xs font-medium focus:ring-2 focus:ring-emerald-500 focus:outline-none bg-white"
                 />
+                <div className="flex items-center gap-2 mt-1.5">
+                  <span className="text-[10px] text-slate-400 font-semibold">Preset Cepat:</span>
+                  <button
+                    type="button"
+                    onClick={() => setBarcodeBaseUrl(window.location.origin)}
+                    className="text-[10px] px-2 py-0.5 rounded-md bg-slate-200/80 hover:bg-slate-300 text-slate-700 font-medium transition cursor-pointer"
+                  >
+                    Domain Saat Ini
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBarcodeBaseUrl("https://sikela-puskesmas.vercel.app")}
+                    className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-100 hover:bg-emerald-200 text-emerald-800 font-semibold transition cursor-pointer"
+                  >
+                    Vercel Produksi
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -781,7 +798,14 @@ export default function PengaduanAdmin() {
             {/* QR Code SVG */}
             <div className="flex flex-col items-center justify-center py-2">
               <div className="p-3 bg-white border-2 border-slate-900 rounded-2xl shadow-sm inline-block">
-                <QRCodeSVG value={getTargetUrl()} size={200} fgColor="#0f172a" />
+                <QRCodeSVG
+                  value={getTargetUrl()}
+                  size={220}
+                  level="H"
+                  includeMargin={true}
+                  fgColor="#0f172a"
+                  bgColor="#ffffff"
+                />
               </div>
               <p className="text-xs font-extrabold text-slate-900 mt-2 tracking-wide uppercase">
                 SCAN BARCODE DI ATAS
